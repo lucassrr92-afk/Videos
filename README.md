@@ -1,8 +1,8 @@
-# ClipForge — do link do YouTube a Shorts, TikTok e Reels
+# ClipForge: do seu vídeo a Shorts, TikTok e Reels
 
-Cole o link de um vídeo do YouTube. O ClipForge:
+App web **de uso pessoal**. Você envia um vídeo (ou cola um link do YouTube) e o ClipForge:
 
-1. **Baixa** o vídeo (yt-dlp, até 1080p).
+1. **Recebe** o arquivo enviado (MP4, MOV, WebM, MKV) ou **baixa** o vídeo do link (yt-dlp, até 1080p).
 2. **Transcreve** com timestamps de cada palavra (faster-whisper, roda local).
 3. **Escolhe os melhores momentos** com o Claude: trechos com gancho forte, que fazem sentido sozinhos e terminam numa conclusão. Também gera o título de gancho, o título do post, a legenda e as hashtags. Sem chave da API, usa uma heurística simples.
 4. **Edita cada corte** em 1080×1920:
@@ -28,6 +28,10 @@ cp .env.example .env        # preencha as chaves (veja abaixo)
 python -m clipforge serve   # abra http://localhost:8000
 ```
 
+### Usar pela internet (celular, outro computador)
+
+Hospede num servidor (VPS) ou deixe rodando no seu computador com um túnel (Cloudflare Tunnel, ngrok). **Defina `APP_PASSWORD` no `.env`**: com ela, o app pede senha antes de qualquer coisa. Use HTTPS (o túnel ou um proxy como Caddy já fornecem) e ajuste `PUBLIC_BASE_URL` para o endereço público. Isso também é necessário para o login do TikTok, que exige HTTPS.
+
 Com Docker: `docker build -t clipforge . && docker run -p 8000:8000 --env-file .env -v $PWD/data:/app/data -v $PWD/tokens:/app/tokens clipforge`
 
 Linha de comando, sem interface:
@@ -52,7 +56,7 @@ Crie uma chave em https://console.anthropic.com e coloque em `ANTHROPIC_API_KEY`
 4. Baixe o JSON como `client_secret.json` na raiz do projeto.
 5. Na interface, clique em **YouTube conectar**.
 
-Atenção: enquanto o projeto do Google não passar pela auditoria da API, os vídeos enviados podem ficar **privados**. A cota padrão permite cerca de 6 uploads por dia.
+Para uso pessoal, deixe o app OAuth em modo "Teste" com seu e-mail como usuário de teste. Nesse modo o login expira a cada 7 dias: é só clicar em conectar de novo. Projetos não verificados podem ter os uploads travados como **privados**; se acontecer, peça a auditoria da YouTube API. A cota padrão permite cerca de 6 uploads por dia.
 
 ### TikTok
 1. Em https://developers.tiktok.com crie um app e adicione os produtos **Login Kit** e **Content Posting API** (com *Direct Post*).
@@ -63,9 +67,11 @@ Atenção: até o TikTok auditar o app, os posts só podem ser **privados (SELF_
 
 ### Instagram Reels
 1. A conta do Instagram precisa ser **Business ou Creator** e estar ligada a uma Página do Facebook.
-2. Crie um app em https://developers.facebook.com com as permissões `instagram_basic`, `instagram_content_publish` e `pages_read_engagement`.
-3. Gere um **token de longa duração** e descubra o **ID da conta do Instagram** (Graph API Explorer: `me/accounts?fields=instagram_business_account`).
-4. Preencha `IG_USER_ID` e `IG_ACCESS_TOKEN`. O upload é *resumable*, então não precisa hospedar o vídeo em URL pública.
+2. Crie um app em https://developers.facebook.com (tipo Business), adicione o produto **Facebook Login** com o redirect `<PUBLIC_BASE_URL>/auth/instagram/callback` e preencha `META_APP_ID` e `META_APP_SECRET`.
+3. Na interface, clique em **Instagram conectar**. Como é só a sua conta (você é administrador do app), funciona em modo desenvolvimento, **sem App Review**.
+4. O upload é *resumable*, então não precisa hospedar o vídeo em URL pública.
+
+Alternativa sem login: preencha `IG_USER_ID` e `IG_ACCESS_TOKEN` (token de longa duração gerado no Graph API Explorer).
 
 ## Personalização
 - Fontes: coloque arquivos `.ttf`/`.otf` (ex.: Montserrat ExtraBold, Anton, The Bold Font) em `fonts/` e mude `font` em `DEFAULT_OPTIONS` (`clipforge/jobs.py`).
@@ -76,7 +82,8 @@ Atenção: até o TikTok auditar o app, os posts só podem ser **privados (SELF_
 
 ```
 clipforge/
-  app.py               servidor web (FastAPI) + rotas OAuth
+  app.py               servidor web (FastAPI): upload, senha de acesso, rotas OAuth
+  accounts.py          tokens das redes (criptografáveis com TOKENS_ENCRYPTION_KEY)
   jobs.py              fila e orquestração (download → transcrição → cortes → render → publicação)
   pipeline/
     download.py        yt-dlp
@@ -92,5 +99,6 @@ clipforge/
 
 ## Avisos
 - Só corte e publique vídeos **seus** ou que você tenha autorização para usar. Repostar conteúdo de terceiros pode gerar strike de direitos autorais e banimento da conta.
-- Baixar vídeos do YouTube pode violar os Termos de Serviço da plataforma, exceto quando o conteúdo é seu.
+- Baixar vídeos do YouTube pode violar os Termos de Serviço da plataforma, exceto quando o conteúdo é seu. Por isso o envio do arquivo é o caminho principal.
+- Depois que os cortes ficam prontos, o vídeo original é apagado do servidor para economizar espaço (a transcrição fica guardada).
 - Publicar o mesmo vídeo em massa sem revisão pode ser tratado como spam pelas plataformas. Por isso o padrão é **revisar antes de publicar**.

@@ -1,4 +1,4 @@
-"""Upload para YouTube Shorts via YouTube Data API v3 (OAuth).
+"""Upload para YouTube Shorts via YouTube Data API v3 (OAuth por usuário).
 
 Vídeos verticais de até 3 minutos são classificados automaticamente como Shorts.
 """
@@ -13,10 +13,9 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-from .. import config
+from .. import accounts, config
 
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
-TOKEN_FILE = config.TOKENS_DIR / "youtube.json"
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"]
 REDIRECT = f"{config.PUBLIC_BASE_URL}/auth/youtube/callback"
 
 
@@ -26,42 +25,45 @@ def _flow(state: str | None = None) -> Flow:
     return Flow.from_client_secrets_file(str(config.YOUTUBE_CLIENT_SECRET_FILE), scopes=SCOPES, state=state, redirect_uri=REDIRECT)
 
 
-def auth_url() -> str:
+def auth_url(state: str) -> tuple[str, str | None]:
+    """Retorna (url, code_verifier). Quem chama guarda o verifier junto do state."""
     flow = _flow()
-    url, state = flow.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="true")
-    (config.TOKENS_DIR / "youtube_state.json").write_text(
-        json.dumps({"state": state, "code_verifier": getattr(flow, "code_verifier", None)})
-    )
-    return url
+    url, _ = flow.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="true", state=state)
+    return url, getattr(flow, "code_verifier", None)
 
 
-def handle_callback(full_url: str) -> None:
-    saved = json.loads((config.TOKENS_DIR / "youtube_state.json").read_text())
-    flow = _flow(saved["state"])
-    if saved.get("code_verifier"):
-        flow.code_verifier = saved["code_verifier"]
+def handle_callback(full_url: str, state: str, code_verifier: str | None, owner: str) -> str:
+    """Troca o code por tokens, salva para `owner` e retorna o nome do canal."""
+    flow = _flow(state)
+    if code_verifier:
+        flow.code_verifier = code_verifier
     if config.PUBLIC_BASE_URL.startswith("http://"):
         os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")  # apenas para uso local
     flow.fetch_token(authorization_response=full_url)
-    TOKEN_FILE.write_text(flow.credentials.to_json())
+    creds = flow.credentials
+    accounts.save("youtube", owner, json.loads(creds.to_json()))
+    yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
+    items = yt.channels().list(part="snippet", mine=True).execute().get("items", [])
+    return items[0]["snippet"]["title"] if items else "YouTube"
 
 
-def is_connected() -> bool:
-    return TOKEN_FILE.exists()
+def is_connected(owner: str = "default") -> bool:
+    return accounts.load("youtube", owner) is not None
 
 
-def _creds() -> Credentials:
-    if not TOKEN_FILE.exists():
-        raise RuntimeError("YouTube não conectado. Abra /auth/youtube para autorizar.")
-    creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
+def _creds(owner: str) -> Credentials:
+    data = accounts.load("youtube", owner)
+    if not data:
+        raise RuntimeError("YouTube não conectado.")
+    creds = Credentials.from_authorized_user_info(data, SCOPES)
     if not creds.valid and creds.refresh_token:
         creds.refresh(Request())
-        TOKEN_FILE.write_text(creds.to_json())
+        accounts.save("youtube", owner, json.loads(creds.to_json()))
     return creds
 
 
-def upload(video_path: str, title: str, description: str, tags: list[str], privacy: str | None = None) -> dict:
-    yt = build("youtube", "v3", credentials=_creds(), cache_discovery=False)
+def upload(video_path: str, title: str, description: str, tags: list[str], privacy: str | None = None, owner: str = "default") -> dict:
+    yt = build("youtube", "v3", credentials=_creds(owner), cache_discovery=False)
     if "#shorts" not in (title + description).lower():
         description = f"{description}\n\n#Shorts"
     body = {

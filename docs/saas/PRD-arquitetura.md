@@ -1,6 +1,8 @@
 # ClipForge SaaS: PRD e arquitetura do MVP
 
-> Status: **proposta para aprovação**. Nada deste documento foi implementado ou implantado ainda.
+> **Atualização (01/11/2026): substituído.** Você decidiu que o app é de **uso pessoal**, sem planos ou cobrança e sem Base44. A versão atual é o app web do `README.md` (FastAPI, com upload de vídeo e senha de acesso). Este documento fica só como referência caso um dia vire SaaS.
+>
+> Status original: **proposta para aprovação**. Nada deste documento foi implementado ou implantado ainda.
 > Ponto de partida: o app local da branch `claude/clipforge` (pipeline Python de download, transcrição, escolha de cortes, render e publicação). Esse pipeline foi testado só com vídeo e transcrição simulados.
 
 ---

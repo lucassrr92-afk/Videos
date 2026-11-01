@@ -25,6 +25,12 @@
   .job h3 { margin:0 0 4px; font-size:16px; } .muted { color:var(--muted); font-size:13px; }
   .bar { height:6px; background:#262a35; border-radius:99px; overflow:hidden; margin:10px 0; }
   .bar > div { height:100%; background:var(--acc); transition:width .4s; }
+  .tabs { display:flex; gap:6px; margin-bottom:12px; }
+  .tab { background:transparent; color:var(--muted); border:1px solid var(--line); font-weight:500; padding:7px 14px; }
+  .tab.active { color:#000; background:var(--acc); border-color:var(--acc); font-weight:700; }
+  .drop { flex:1; min-width:280px; border:1.5px dashed var(--line); border-radius:10px; padding:18px; color:var(--muted);
+          font-size:14px; cursor:pointer; flex-direction:row; text-align:center; justify-content:center; }
+  .drop.over, .drop.has { border-color:var(--acc); color:#fff; }
   .clips { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; margin-top:14px; }
   .clip { background:#0e0f13; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
   .clip video { width:100%; aspect-ratio:9/16; background:#000; display:block; }
@@ -38,20 +44,29 @@
 <body>
 <header>
   <h1>Clip<span>Forge</span></h1>
-  <div class="muted">Link do YouTube → cortes verticais editados → Shorts, TikTok e Reels</div>
+  <div class="muted">Seu vídeo → cortes verticais editados → Shorts, TikTok e Reels</div>
   <div class="conn">
     <span class="pill {{ 'on' if conn.claude else '' }}">IA {{ '✓' if conn.claude else '(heurística)' }}</span>
     <a class="pill {{ 'on' if conn.youtube else '' }}" href="/auth/youtube">YouTube {{ '✓' if conn.youtube else 'conectar' }}</a>
     <a class="pill {{ 'on' if conn.tiktok else '' }}" href="/auth/tiktok">TikTok {{ '✓' if conn.tiktok else 'conectar' }}</a>
-    <span class="pill {{ 'on' if conn.instagram else '' }}" title="Configure IG_USER_ID e IG_ACCESS_TOKEN no .env">Instagram {{ '✓' if conn.instagram else '(configurar .env)' }}</span>
+    <a class="pill {{ 'on' if conn.instagram else '' }}" href="/auth/instagram">Instagram {{ '✓' if conn.instagram else 'conectar' }}</a>
   </div>
 </header>
 <main>
   <form class="card" id="f">
-    <div class="row">
-      <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
-      <button>Gerar cortes</button>
+    <div class="tabs">
+      <button type="button" class="tab active" data-tab="file">Enviar vídeo</button>
+      <button type="button" class="tab" data-tab="url">Link do YouTube</button>
     </div>
+    <div class="row">
+      <label class="drop" id="drop" data-pane="file">
+        <input type="file" name="file" accept="video/*,.mkv" hidden>
+        <span id="dropText">Arraste o vídeo aqui ou <u>clique para escolher</u> (MP4, MOV, WebM, MKV)</span>
+      </label>
+      <input type="text" name="url" data-pane="url" placeholder="https://www.youtube.com/watch?v=..." hidden>
+      <button id="go">Gerar cortes</button>
+    </div>
+    <div class="bar" id="upbar" hidden><div style="width:0%"></div></div>
     <div class="row" style="margin-top:14px">
       <label>Nº de cortes<input type="number" name="clips" value="5" min="1" max="20" style="width:90px"></label>
       <label>Duração mín. (s)<input type="number" name="min_len" value="20" min="5" style="width:90px"></label>
@@ -80,17 +95,59 @@ const $ = s => document.querySelector(s);
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const editing = new Set();
 
+let mode = 'file';
+const fileInput = $('input[name=file]'), drop = $('#drop');
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  mode = t.dataset.tab;
+  document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x === t));
+  document.querySelectorAll('[data-pane]').forEach(el => el.hidden = el.dataset.pane !== mode);
+});
+const showFile = () => {
+  const f = fileInput.files[0];
+  drop.classList.toggle('has', !!f);
+  $('#dropText').textContent = f ? `${f.name} · ${(f.size / 1048576).toFixed(0)} MB` : 'Arraste o vídeo aqui ou clique para escolher';
+};
+fileInput.onchange = showFile;
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); fileInput.files = e.dataTransfer.files; showFile(); };
+
+function uploadWithProgress(fd) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest(), bar = $('#upbar');
+    bar.hidden = false;
+    xhr.upload.onprogress = ev => { if (ev.lengthComputable) bar.firstElementChild.style.width = (ev.loaded / ev.total * 100) + '%'; };
+    xhr.onload = () => { bar.hidden = true; xhr.status < 300 ? resolve() : reject(JSON.parse(xhr.responseText || '{}').detail || 'Erro no envio'); };
+    xhr.onerror = () => { bar.hidden = true; reject('Falha de conexão durante o envio'); };
+    xhr.open('POST', '/api/upload'); xhr.send(fd);
+  });
+}
+
 $('#f').onsubmit = async e => {
   e.preventDefault();
   const fd = new FormData(e.target);
-  const body = {
-    url: fd.get('url'), clips: +fd.get('clips'), min_len: +fd.get('min_len'), max_len: +fd.get('max_len'),
+  const opts = {
+    clips: +fd.get('clips'), min_len: +fd.get('min_len'), max_len: +fd.get('max_len'),
     layout: fd.get('layout'), caption_preset: fd.get('caption_preset'),
     jump_cuts: !!fd.get('jump_cuts'), auto_publish: !!fd.get('auto_publish'), platforms: fd.getAll('platforms'),
   };
-  const r = await fetch('/api/jobs', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-  if (!r.ok) return alert((await r.json()).detail || 'Erro');
-  e.target.url.value = ''; refresh();
+  const go = $('#go'); go.disabled = true;
+  try {
+    if (mode === 'file') {
+      if (!fileInput.files[0]) throw 'Escolha um arquivo de vídeo';
+      const up = new FormData(); up.append('file', fileInput.files[0]); up.append('options', JSON.stringify(opts));
+      go.textContent = 'Enviando…';
+      await uploadWithProgress(up);
+      fileInput.value = ''; showFile();
+    } else {
+      if (!fd.get('url')) throw 'Cole um link do YouTube';
+      const r = await fetch('/api/jobs', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({url: fd.get('url'), ...opts})});
+      if (!r.ok) throw (await r.json()).detail || 'Erro';
+      e.target.url.value = '';
+    }
+    refresh();
+  } catch (err) { alert(err); }
+  finally { go.disabled = false; go.textContent = 'Gerar cortes'; }
 };
 
 function pubInfo(p) {
@@ -142,8 +199,8 @@ async function refresh() {
   if (editing.size || [...document.querySelectorAll('video')].some(v => !v.paused)) return;
   const list = await (await fetch('/api/jobs')).json();
   $('#jobs').innerHTML = list.map(j => `<div class="card job">
-    <h3>${esc(j.meta.title || j.url)}</h3>
-    <div class="muted">${esc(j.status)} · ${esc(j.stage)} · <a class="muted" href="${esc(j.url)}" target="_blank">${esc(j.url)}</a></div>
+    <h3>${esc(j.meta.title || j.upload_name || j.url)}</h3>
+    <div class="muted">${esc(j.status)} · ${esc(j.stage)}${j.url ? ` · <a class="muted" href="${esc(j.url)}" target="_blank">${esc(j.url)}</a>` : ''}</div>
     ${j.status !== 'concluído' ? `<div class="bar"><div style="width:${(j.progress*100).toFixed(0)}%"></div></div>` : ''}
     ${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}
     <div class="clips">${j.clips.map(c => clipCard(j, c)).join('')}</div>

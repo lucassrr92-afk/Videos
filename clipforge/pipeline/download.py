@@ -37,3 +37,45 @@ def download(url: str, out_dir: Path, progress: Callable[[float], None] | None =
         "channel": info.get("uploader") or info.get("channel") or "",
         "description": (info.get("description") or "")[:2000],
     }
+
+
+def http_get(url: str, dest: Path, progress: Callable[[float], None] | None = None) -> Path:
+    """Baixa um arquivo por HTTP em streaming."""
+    import requests
+
+    with requests.get(url, stream=True, timeout=60) as r:
+        r.raise_for_status()
+        total = int(r.headers.get("content-length") or 0)
+        done = 0
+        with open(dest, "wb") as fh:
+            for chunk in r.iter_content(1024 * 1024):
+                fh.write(chunk)
+                done += len(chunk)
+                if progress and total:
+                    progress(min(done / total, 1.0))
+    return dest
+
+
+def probe_local(path: Path, title: str = "") -> dict:
+    """Valida um arquivo de vídeo enviado (trilhas de vídeo e áudio) com ffprobe."""
+    import json
+    import subprocess
+
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", str(path)],
+        capture_output=True, text=True,
+    )
+    info = json.loads(probe.stdout or "{}")
+    kinds = {s.get("codec_type") for s in info.get("streams", [])}
+    if probe.returncode != 0 or "video" not in kinds:
+        raise RuntimeError("Arquivo inválido: não encontrei uma trilha de vídeo.")
+    if "audio" not in kinds:
+        raise RuntimeError("O vídeo não tem áudio; não dá para gerar legendas e escolher cortes.")
+    return {"path": str(path), "title": title, "duration": float(info.get("format", {}).get("duration") or 0),
+            "channel": "", "description": ""}
+
+
+def download_url(url: str, out_dir: Path, title: str = "", progress: Callable[[float], None] | None = None) -> dict:
+    """Baixa um arquivo de vídeo por URL direta e valida."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return probe_local(http_get(url, out_dir / "source.mp4", progress), title)

@@ -59,12 +59,19 @@ def list_jobs() -> list[dict]:
     return sorted(jobs, key=lambda j: j["created_at"], reverse=True)
 
 
-def create(url: str, options: dict | None = None) -> dict:
+def new_id() -> str:
     job_id = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
     job_dir(job_id).mkdir(parents=True)
+    return job_id
+
+
+def create(url: str, options: dict | None = None, job_id: str | None = None, upload_name: str = "") -> dict:
+    """Cria o job. Para upload, o arquivo já deve estar em job_dir(job_id)/upload.<ext>."""
+    job_id = job_id or new_id()
     job = {
         "id": job_id,
         "url": url,
+        "upload_name": upload_name,
         "options": {**DEFAULT_OPTIONS, **(options or {})},
         "status": "na fila",
         "stage": "",
@@ -90,7 +97,12 @@ def run(job_id: str) -> None:
     opts = job["options"]
     try:
         _set(job, status="processando", stage="Baixando vídeo", progress=0.0)
-        meta = download.download(job["url"], d, progress=lambda p: _set(job, progress=p * 0.15))
+        upload = next(d.glob("upload.*"), None)
+        if upload:
+            title = Path(job.get("upload_name") or upload.name).stem.replace("_", " ")
+            meta = download.probe_local(upload, title)
+        else:
+            meta = download.download(job["url"], d, progress=lambda p: _set(job, progress=p * 0.15))
         _set(job, meta=meta, stage="Transcrevendo áudio", progress=0.15)
 
         tr = transcribe.transcribe(Path(meta["path"]), d, progress=lambda p: _set(job, progress=0.15 + p * 0.35))
@@ -134,6 +146,8 @@ def run(job_id: str) -> None:
                     publish_clip(job, clip["n"], opts["platforms"])
 
         _set(job, status="concluído", stage="Pronto", progress=1.0)
+        # o original não é mais necessário: libera espaço (a transcrição fica em cache)
+        Path(meta["path"]).unlink(missing_ok=True)
     except Exception as e:  # noqa: BLE001
         log.exception("job %s falhou", job_id)
         _set(job, status="erro", error=f"{e}\n{traceback.format_exc()[-1500:]}")

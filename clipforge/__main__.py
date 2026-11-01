@@ -1,5 +1,5 @@
 """Uso:
-  python -m clipforge serve                      # interface web em http://localhost:8000
+  python -m clipforge serve                      # interface web local em http://localhost:8000
   python -m clipforge URL [--clips 5] [--publish youtube,tiktok,instagram]
 """
 from __future__ import annotations

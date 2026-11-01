@@ -6,26 +6,21 @@ só podem ser privados (SELF_ONLY).
 """
 from __future__ import annotations
 
-import json
 import os
-import secrets
 import time
 import urllib.parse
 
 import requests
 
-from .. import config
+from .. import accounts, config
 
 API = "https://open.tiktokapis.com/v2"
-TOKEN_FILE = config.TOKENS_DIR / "tiktok.json"
 REDIRECT = f"{config.PUBLIC_BASE_URL}/auth/tiktok/callback"
 
 
-def auth_url() -> str:
+def auth_url(state: str) -> str:
     if not config.TIKTOK_CLIENT_KEY:
         raise RuntimeError("Defina TIKTOK_CLIENT_KEY e TIKTOK_CLIENT_SECRET no .env")
-    state = secrets.token_urlsafe(16)
-    (config.TOKENS_DIR / "tiktok_state.txt").write_text(state)
     q = {
         "client_key": config.TIKTOK_CLIENT_KEY,
         "scope": "user.info.basic,video.publish",
@@ -36,18 +31,16 @@ def auth_url() -> str:
     return "https://www.tiktok.com/v2/auth/authorize/?" + urllib.parse.urlencode(q)
 
 
-def _save(tok: dict) -> dict:
+def _save(owner: str, tok: dict) -> dict:
     if "access_token" not in tok:
         raise RuntimeError(f"TikTok OAuth falhou: {tok}")
     tok["obtained_at"] = int(time.time())
-    TOKEN_FILE.write_text(json.dumps(tok))
+    accounts.save("tiktok", owner, tok)
     return tok
 
 
-def handle_callback(code: str, state: str) -> None:
-    expected = (config.TOKENS_DIR / "tiktok_state.txt").read_text()
-    if state != expected:
-        raise RuntimeError("state inválido no callback do TikTok")
+def handle_callback(code: str, owner: str) -> str:
+    """Troca o code por tokens (o state já foi validado por quem chama). Retorna o nome do perfil."""
     r = requests.post(
         f"{API}/oauth/token/",
         data={
@@ -59,17 +52,22 @@ def handle_callback(code: str, state: str) -> None:
         },
         timeout=30,
     )
-    _save(r.json())
+    tok = _save(owner, r.json())
+    info = requests.get(
+        f"{API}/user/info/", params={"fields": "display_name"},
+        headers={"Authorization": f"Bearer {tok['access_token']}"}, timeout=30,
+    ).json()
+    return info.get("data", {}).get("user", {}).get("display_name") or "TikTok"
 
 
-def is_connected() -> bool:
-    return TOKEN_FILE.exists()
+def is_connected(owner: str = "default") -> bool:
+    return accounts.load("tiktok", owner) is not None
 
 
-def _token() -> str:
-    if not TOKEN_FILE.exists():
-        raise RuntimeError("TikTok não conectado. Abra /auth/tiktok para autorizar.")
-    tok = json.loads(TOKEN_FILE.read_text())
+def _token(owner: str) -> str:
+    tok = accounts.load("tiktok", owner)
+    if not tok:
+        raise RuntimeError("TikTok não conectado.")
     if time.time() > tok["obtained_at"] + tok.get("expires_in", 86400) - 300:
         r = requests.post(
             f"{API}/oauth/token/",
@@ -81,8 +79,14 @@ def _token() -> str:
             },
             timeout=30,
         )
-        tok = _save(r.json())
+        tok = _save(owner, r.json())
     return tok["access_token"]
+
+
+def creator_info(owner: str) -> dict:
+    """Nome do perfil e opções de privacidade permitidas (exibir no modal de publicação)."""
+    headers = {"Authorization": f"Bearer {_token(owner)}", "Content-Type": "application/json; charset=UTF-8"}
+    return _check(requests.post(f"{API}/post/publish/creator_info/query/", headers=headers, timeout=30))
 
 
 def _check(resp: requests.Response) -> dict:
@@ -93,8 +97,8 @@ def _check(resp: requests.Response) -> dict:
     return data.get("data", {})
 
 
-def upload(video_path: str, caption: str, privacy: str | None = None) -> dict:
-    token = _token()
+def upload(video_path: str, caption: str, privacy: str | None = None, owner: str = "default") -> dict:
+    token = _token(owner)
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json; charset=UTF-8"}
 
     creator = _check(requests.post(f"{API}/post/publish/creator_info/query/", headers=headers, timeout=30))

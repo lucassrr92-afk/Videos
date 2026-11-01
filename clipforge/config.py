@@ -43,6 +43,12 @@ TIKTOK_PRIVACY = env("TIKTOK_PRIVACY", "PUBLIC_TO_EVERYONE")
 IG_USER_ID = env("IG_USER_ID")
 IG_ACCESS_TOKEN = env("IG_ACCESS_TOKEN")
 IG_GRAPH_VERSION = env("IG_GRAPH_VERSION", "v21.0")
+META_APP_ID = env("META_APP_ID")
+META_APP_SECRET = env("META_APP_SECRET")
+
+# Acesso ao app web (uso pessoal): defina uma senha ao hospedar na internet
+APP_PASSWORD = env("APP_PASSWORD")
+MAX_UPLOAD_MB = int(env("MAX_UPLOAD_MB", "4096"))
 
 # Saída vertical padrão para Shorts / TikTok / Reels
 OUT_W, OUT_H, OUT_FPS = 1080, 1920, 30

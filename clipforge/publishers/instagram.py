@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import os
 import time
+import urllib.parse
 
 import requests
 
-from .. import config
+from .. import accounts, config
 
-
-def is_connected() -> bool:
-    return bool(config.IG_USER_ID and config.IG_ACCESS_TOKEN)
+REDIRECT = f"{config.PUBLIC_BASE_URL}/auth/instagram/callback"
+SCOPES = "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management"
 
 
 def _graph(path: str) -> str:
@@ -29,13 +29,56 @@ def _json(r: requests.Response) -> dict:
     return data
 
 
-def upload(video_path: str, caption: str, share_to_feed: bool = True) -> dict:
-    if not is_connected():
-        raise RuntimeError("Defina IG_USER_ID e IG_ACCESS_TOKEN no .env")
-    token = config.IG_ACCESS_TOKEN
+def auth_url(state: str) -> str:
+    if not (config.META_APP_ID and config.META_APP_SECRET):
+        raise RuntimeError("Defina META_APP_ID e META_APP_SECRET no .env")
+    q = {"client_id": config.META_APP_ID, "redirect_uri": REDIRECT, "state": state, "scope": SCOPES, "response_type": "code"}
+    return f"https://www.facebook.com/{config.IG_GRAPH_VERSION}/dialog/oauth?" + urllib.parse.urlencode(q)
+
+
+def handle_callback(code: str, owner: str) -> str:
+    """Troca o code por um token de longa duração e encontra a conta do Instagram ligada à Página."""
+    short = _json(requests.get(_graph("oauth/access_token"), params={
+        "client_id": config.META_APP_ID, "client_secret": config.META_APP_SECRET,
+        "redirect_uri": REDIRECT, "code": code}, timeout=30))["access_token"]
+    long = _json(requests.get(_graph("oauth/access_token"), params={
+        "grant_type": "fb_exchange_token", "client_id": config.META_APP_ID,
+        "client_secret": config.META_APP_SECRET, "fb_exchange_token": short}, timeout=30))
+    token = long["access_token"]
+    pages = _json(requests.get(_graph("me/accounts"), params={
+        "fields": "name,instagram_business_account{id,username}", "access_token": token}, timeout=30)).get("data", [])
+    ig = next((p["instagram_business_account"] for p in pages if p.get("instagram_business_account")), None)
+    if not ig:
+        raise RuntimeError("Nenhuma conta Instagram Business/Creator ligada às suas Páginas do Facebook.")
+    accounts.save("instagram", owner, {
+        "ig_user_id": ig["id"], "username": ig.get("username", ""), "access_token": token,
+        "expires_at": int(time.time()) + int(long.get("expires_in", 60 * 86400)),
+    })
+    return "@" + ig.get("username", "instagram")
+
+
+def _creds(owner: str) -> tuple[str, str]:
+    data = accounts.load("instagram", owner)
+    if data:
+        return data["ig_user_id"], data["access_token"]
+    if owner == "default" and config.IG_USER_ID and config.IG_ACCESS_TOKEN:
+        return config.IG_USER_ID, config.IG_ACCESS_TOKEN
+    raise RuntimeError("Instagram não conectado.")
+
+
+def is_connected(owner: str = "default") -> bool:
+    try:
+        _creds(owner)
+        return True
+    except RuntimeError:
+        return False
+
+
+def upload(video_path: str, caption: str, share_to_feed: bool = True, owner: str = "default") -> dict:
+    ig_user_id, token = _creds(owner)
 
     container = _json(requests.post(
-        _graph(f"{config.IG_USER_ID}/media"),
+        _graph(f"{ig_user_id}/media"),
         data={
             "media_type": "REELS",
             "upload_type": "resumable",
@@ -70,7 +113,7 @@ def upload(video_path: str, caption: str, share_to_feed: bool = True) -> dict:
     if status != "FINISHED":
         raise RuntimeError("Tempo esgotado aguardando o Instagram processar o Reel")
 
-    pub = _json(requests.post(_graph(f"{config.IG_USER_ID}/media_publish"), data={"creation_id": cid, "access_token": token}, timeout=60))
+    pub = _json(requests.post(_graph(f"{ig_user_id}/media_publish"), data={"creation_id": cid, "access_token": token}, timeout=60))
     media_id = pub["id"]
     link = _json(requests.get(_graph(media_id), params={"fields": "permalink", "access_token": token}, timeout=30)).get("permalink")
     return {"id": media_id, "url": link}

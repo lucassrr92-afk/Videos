@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import shutil
 from pathlib import Path
 
@@ -22,6 +23,8 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
 COOKIE = "cf_session"
+STATIC = Path(__file__).parent / "static"
+PUBLIC_PATHS = {"/login", "/favicon.ico", "/manifest.webmanifest", "/sw.js", "/icon-192.png", "/icon-512.png"}
 
 
 # ---------- acesso por senha (uso pessoal) ----------
@@ -31,13 +34,13 @@ def _session_value() -> str:
 
 @app.middleware("http")
 async def require_password(request: Request, call_next):
-    if not config.APP_PASSWORD or request.url.path in ("/login", "/favicon.ico"):
+    if not config.APP_PASSWORD or request.url.path in PUBLIC_PATHS:
         return await call_next(request)
     if hmac.compare_digest(request.cookies.get(COOKIE, ""), _session_value()):
         return await call_next(request)
     if request.url.path.startswith("/api/"):
         return JSONResponse({"detail": "não autenticado"}, status_code=401)
-    return RedirectResponse("/login")
+    return RedirectResponse("/login", status_code=303)
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -123,6 +126,56 @@ def api_upload(file: UploadFile = File(...), options: str = Form("{}")):
                 raise HTTPException(413, f"Arquivo maior que {config.MAX_UPLOAD_MB} MB")
             out.write(chunk)
     return jobs.create("", opts, job_id=job_id, upload_name=file.filename or "")
+
+
+# ---------- PWA (instalar no celular) e compartilhamento ----------
+@app.get("/manifest.webmanifest")
+def manifest():
+    return FileResponse(STATIC / "manifest.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse(STATIC / "sw.js", media_type="text/javascript")
+
+
+@app.get("/icon-{size}.png")
+def icon(size: int):
+    if size not in (192, 512):
+        raise HTTPException(404)
+    return FileResponse(STATIC / f"icon-{size}.png", media_type="image/png")
+
+
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse(STATIC / "icon-192.png", media_type="image/png")
+
+
+_YT = re.compile(r"https?://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?v=|shorts/|live/)|youtu\.be/)[\w-]{6,}[^\s]*")
+
+
+@app.post("/share")
+async def share_target(request: Request):
+    """Recebe o que foi compartilhado no celular (Android): um vídeo da galeria ou um link do YouTube."""
+    form = await request.form()
+    f = form.get("file")
+    opts = NewJob(url="share").model_dump(exclude={"url"})
+    if f is not None and getattr(f, "filename", ""):
+        ext = Path(f.filename).suffix.lower() or ".mp4"
+        if ext not in VIDEO_EXT:
+            return RedirectResponse("/?erro=formato", status_code=303)
+        job_id = jobs.new_id()
+        with open(jobs.job_dir(job_id) / f"upload{ext}", "wb") as out:
+            while chunk := await f.read(4 * 1024 * 1024):
+                out.write(chunk)
+        jobs.create("", opts, job_id=job_id, upload_name=f.filename)
+        return RedirectResponse("/", status_code=303)
+    blob = " ".join(str(form.get(k) or "") for k in ("url", "text", "title"))
+    m = _YT.search(blob)
+    if not m:
+        return RedirectResponse("/?erro=link", status_code=303)
+    jobs.create(m.group(0), opts)
+    return RedirectResponse("/", status_code=303)
 
 
 @app.get("/api/jobs")

@@ -2,8 +2,15 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ClipForge — cortes automáticos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ClipForge</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0e0f13">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ClipForge">
 <style>
   :root { --bg:#0e0f13; --card:#171920; --muted:#8b8f9c; --line:#262a35; --acc:#ffd400; --ok:#2ecc71; --err:#ff5c5c; }
   * { box-sizing:border-box; }
@@ -39,6 +46,26 @@
   .score { font-weight:700; color:var(--acc); }
   .res a { color:var(--ok); } .err { color:var(--err); font-size:12px; white-space:pre-wrap; }
   .plats { display:flex; gap:10px; flex-wrap:wrap; }
+  details.opts { margin-top:14px; } details.opts summary { cursor:pointer; color:var(--muted); font-size:14px; padding:6px 0; }
+  details.opts[open] summary { color:#fff; }
+  @media (max-width: 640px) {
+    header { padding:14px 16px; padding-top:max(14px, env(safe-area-inset-top)); gap:8px; }
+    header .muted { display:none; }
+    .conn { margin-left:0; width:100%; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; }
+    .pill { white-space:nowrap; padding:7px 12px; font-size:13px; }
+    main { padding:12px; }
+    .card { padding:14px; border-radius:12px; margin-bottom:12px; }
+    .row > * { width:100%; min-width:0 !important; }
+    .drop { padding:28px 14px; font-size:16px; }
+    #go { width:100%; padding:15px; font-size:16px; }
+    .row label:not(.chk) { flex:1 1 45%; width:auto; } .row label input:not([type=checkbox]), .row label select { width:100% !important; }
+    label.chk { justify-content:flex-start; gap:10px; font-size:15px; } label.chk input { width:20px; height:20px; }
+    .tab { flex:1; padding:10px; }
+    .clips { grid-template-columns:1fr; gap:14px; }
+    .clip video { max-height:75vh; }
+    .clip .plats button, .clip .plats a { flex:1 1 40%; text-align:center; padding:11px 8px; }
+    input, select, textarea { font-size:16px !important; } /* evita zoom automático no iPhone */
+  }
 </style>
 </head>
 <body>
@@ -61,12 +88,14 @@
     <div class="row">
       <label class="drop" id="drop" data-pane="file">
         <input type="file" name="file" accept="video/*,.mkv" hidden>
-        <span id="dropText">Arraste o vídeo aqui ou <u>clique para escolher</u> (MP4, MOV, WebM, MKV)</span>
+        <span id="dropText"></span>
       </label>
       <input type="text" name="url" data-pane="url" placeholder="https://www.youtube.com/watch?v=..." hidden>
       <button id="go">Gerar cortes</button>
     </div>
     <div class="bar" id="upbar" hidden><div style="width:0%"></div></div>
+    <details class="opts">
+    <summary>Opções de edição e publicação</summary>
     <div class="row" style="margin-top:14px">
       <label>Nº de cortes<input type="number" name="clips" value="5" min="1" max="20" style="width:90px"></label>
       <label>Duração mín. (s)<input type="number" name="min_len" value="20" min="5" style="width:90px"></label>
@@ -87,6 +116,7 @@
       </div>
       <label class="chk"><input type="checkbox" name="auto_publish"> Publicar automaticamente (sem revisão)</label>
     </div>
+    </details>
   </form>
   <div id="jobs"></div>
 </main>
@@ -105,9 +135,14 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
 const showFile = () => {
   const f = fileInput.files[0];
   drop.classList.toggle('has', !!f);
-  $('#dropText').textContent = f ? `${f.name} · ${(f.size / 1048576).toFixed(0)} MB` : 'Arraste o vídeo aqui ou clique para escolher';
+  $('#dropText').textContent = f ? `🎬 ${f.name} · ${(f.size / 1048576).toFixed(0)} MB`
+    : (matchMedia('(pointer:coarse)').matches ? '📁 Toque para escolher o vídeo' : 'Arraste o vídeo aqui ou clique para escolher (MP4, MOV, WebM, MKV)');
 };
 fileInput.onchange = showFile;
+showFile();
+const erro = new URLSearchParams(location.search).get('erro');
+if (erro) { alert({formato: 'Formato de vídeo não suportado.', link: 'Não encontrei um link do YouTube no que foi compartilhado.'}[erro] || 'Erro'); history.replaceState(null, '', '/'); }
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
 drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
 drop.ondragleave = () => drop.classList.remove('over');
 drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); fileInput.files = e.dataTransfer.files; showFile(); };

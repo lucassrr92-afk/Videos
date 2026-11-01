@@ -1,0 +1,30 @@
+# Sobe o ClipForge com HTTPS automático (Caddy + Let's Encrypt).
+# Uso num servidor com o domínio apontando para ele:
+#   DOMAIN=cortes.seudominio.com docker compose up -d --build
+services:
+  app:
+    build: .
+    env_file: .env
+    environment:
+      - PUBLIC_BASE_URL=https://${DOMAIN:?defina DOMAIN}
+    volumes:
+      - ./data:/app/data
+      - ./tokens:/app/tokens
+      - ./client_secret.json:/app/client_secret.json:ro
+      - whisper-cache:/root/.cache/huggingface
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [app]
+    restart: unless-stopped
+
+volumes:
+  whisper-cache:
+  caddy-data:

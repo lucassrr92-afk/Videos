@@ -28,7 +28,23 @@ cp .env.example .env        # preencha as chaves (veja abaixo)
 python -m clipforge serve   # abra http://localhost:8000
 ```
 
-### Usar pela internet (celular, outro computador)
+### Usar no celular
+
+1. Abra o endereço do app no navegador do celular e entre com a senha.
+2. **Instale na tela inicial:** no Android (Chrome), use o menu ⋮ → *Instalar app*; no iPhone (Safari), use Compartilhar → *Adicionar à Tela de Início*.
+3. **Android:** depois de instalado, o ClipForge aparece no menu **Compartilhar**. No app do YouTube, toque em Compartilhar → ClipForge e os cortes começam. Na Galeria, compartilhe um vídeo → ClipForge.
+
+O app precisa estar rodando num servidor ou no seu computador (veja abaixo).
+
+**Servidor próprio (VPS) com HTTPS automático:** contrate um VPS Ubuntu (mínimo 4 vCPU e 8 GB de RAM), aponte um domínio para o IP dele e rode:
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucassrr92-afk/Videos/claude/clipforge/deploy.sh | DOMAIN=cortes.seudominio.com bash
+```
+O script instala o Docker, sobe o app com certificado HTTPS e mostra a senha de acesso gerada.
+
+**No seu computador, acessando pelo celular:** rode `python -m clipforge serve` e, em outro terminal, `cloudflared tunnel --url http://localhost:8000`. O cloudflared mostra um endereço `https://….trycloudflare.com`. Abra esse endereço no celular, e lembre de definir `APP_PASSWORD`.
+
+### Usar pela internet (detalhes)
 
 Hospede num servidor (VPS) ou deixe rodando no seu computador com um túnel (Cloudflare Tunnel, ngrok). **Defina `APP_PASSWORD` no `.env`**: com ela, o app pede senha antes de qualquer coisa. Use HTTPS (o túnel ou um proxy como Caddy já fornecem) e ajuste `PUBLIC_BASE_URL` para o endereço público. Isso também é necessário para o login do TikTok, que exige HTTPS.
 

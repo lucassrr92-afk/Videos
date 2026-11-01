@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClipForge — cortes automáticos</title>
+<style>
+  :root { --bg:#0e0f13; --card:#171920; --muted:#8b8f9c; --line:#262a35; --acc:#ffd400; --ok:#2ecc71; --err:#ff5c5c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:Inter,system-ui,sans-serif; background:var(--bg); color:#eef0f5; }
+  header { padding:20px 28px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:20px; } header h1 span { color:var(--acc); }
+  .conn { display:flex; gap:8px; margin-left:auto; flex-wrap:wrap; }
+  .pill { font-size:12px; padding:5px 10px; border-radius:99px; border:1px solid var(--line); color:var(--muted); text-decoration:none; }
+  .pill.on { color:var(--ok); border-color:#2ecc7155; }
+  main { max-width:1200px; margin:0 auto; padding:24px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:20px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:end; }
+  input:not([type=checkbox]), select, textarea { background:#0e0f13; color:#fff; border:1px solid var(--line); border-radius:8px; padding:10px; font:inherit; }
+  input[type=text] { flex:1; min-width:280px; font-size:16px; }
+  label { font-size:12px; color:var(--muted); display:flex; flex-direction:column; gap:4px; }
+  label.chk { flex-direction:row; align-items:center; color:#ddd; font-size:14px; }
+  button { background:var(--acc); color:#000; border:0; border-radius:8px; padding:11px 18px; font-weight:700; cursor:pointer; }
+  button.ghost { background:transparent; color:#fff; border:1px solid var(--line); font-weight:500; padding:7px 12px; }
+  .job h3 { margin:0 0 4px; font-size:16px; } .muted { color:var(--muted); font-size:13px; }
+  .bar { height:6px; background:#262a35; border-radius:99px; overflow:hidden; margin:10px 0; }
+  .bar > div { height:100%; background:var(--acc); transition:width .4s; }
+  .clips { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; margin-top:14px; }
+  .clip { background:#0e0f13; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .clip video { width:100%; aspect-ratio:9/16; background:#000; display:block; }
+  .clip .body { padding:12px; display:flex; flex-direction:column; gap:8px; }
+  .clip textarea, .clip input { width:100%; font-size:13px; }
+  .score { font-weight:700; color:var(--acc); }
+  .res a { color:var(--ok); } .err { color:var(--err); font-size:12px; white-space:pre-wrap; }
+  .plats { display:flex; gap:10px; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Clip<span>Forge</span></h1>
+  <div class="muted">Link do YouTube → cortes verticais editados → Shorts, TikTok e Reels</div>
+  <div class="conn">
+    <span class="pill {{ 'on' if conn.claude else '' }}">IA {{ '✓' if conn.claude else '(heurística)' }}</span>
+    <a class="pill {{ 'on' if conn.youtube else '' }}" href="/auth/youtube">YouTube {{ '✓' if conn.youtube else 'conectar' }}</a>
+    <a class="pill {{ 'on' if conn.tiktok else '' }}" href="/auth/tiktok">TikTok {{ '✓' if conn.tiktok else 'conectar' }}</a>
+    <span class="pill {{ 'on' if conn.instagram else '' }}" title="Configure IG_USER_ID e IG_ACCESS_TOKEN no .env">Instagram {{ '✓' if conn.instagram else '(configurar .env)' }}</span>
+  </div>
+</header>
+<main>
+  <form class="card" id="f">
+    <div class="row">
+      <input type="text" name="url" placeholder="https://www.youtube.com/watch?v=..." required>
+      <button>Gerar cortes</button>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <label>Nº de cortes<input type="number" name="clips" value="5" min="1" max="20" style="width:90px"></label>
+      <label>Duração mín. (s)<input type="number" name="min_len" value="20" min="5" style="width:90px"></label>
+      <label>Duração máx. (s)<input type="number" name="max_len" value="60" min="10" max="180" style="width:90px"></label>
+      <label>Enquadramento
+        <select name="layout"><option value="auto">Automático</option><option value="crop">Seguir rosto</option><option value="blur">Vídeo inteiro + fundo desfocado</option></select>
+      </label>
+      <label>Cor da legenda
+        <select name="caption_preset"><option>amarelo</option><option>verde</option><option>rosa</option><option>branco</option></select>
+      </label>
+      <label class="chk"><input type="checkbox" name="jump_cuts" checked> Remover silêncios</label>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <div class="plats">
+        <label class="chk"><input type="checkbox" name="platforms" value="youtube"> YouTube Shorts</label>
+        <label class="chk"><input type="checkbox" name="platforms" value="tiktok"> TikTok</label>
+        <label class="chk"><input type="checkbox" name="platforms" value="instagram"> Instagram Reels</label>
+      </div>
+      <label class="chk"><input type="checkbox" name="auto_publish"> Publicar automaticamente (sem revisão)</label>
+    </div>
+  </form>
+  <div id="jobs"></div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const editing = new Set();
+
+$('#f').onsubmit = async e => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const body = {
+    url: fd.get('url'), clips: +fd.get('clips'), min_len: +fd.get('min_len'), max_len: +fd.get('max_len'),
+    layout: fd.get('layout'), caption_preset: fd.get('caption_preset'),
+    jump_cuts: !!fd.get('jump_cuts'), auto_publish: !!fd.get('auto_publish'), platforms: fd.getAll('platforms'),
+  };
+  const r = await fetch('/api/jobs', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  if (!r.ok) return alert((await r.json()).detail || 'Erro');
+  e.target.url.value = ''; refresh();
+};
+
+function pubInfo(p) {
+  if (!p) return '';
+  if (p.ok) return p.url ? `<a href="${esc(p.url)}" target="_blank">publicado ↗</a>` : `✓ ${esc(p.status || 'enviado')}`;
+  if (p.status === 'enviando') return 'enviando…';
+  return `<span class="err">${esc(p.error)}</span>`;
+}
+
+function clipCard(job, c) {
+  const id = `${job.id}-${c.n}`;
+  const media = c.file ? `<video src="/media/${job.id}/${c.file}" poster="/media/${job.id}/${c.thumb}" controls preload="none"></video>` : `<div style="aspect-ratio:9/16;display:grid;place-items:center" class="muted">${esc(c.status)}</div>`;
+  const pubs = ['youtube','tiktok','instagram'].map(p => `<div class="res muted">${p}: ${pubInfo((c.published||{})[p]) || '—'}</div>`).join('');
+  return `<div class="clip">${media}<div class="body">
+    <div><span class="score">${c.viral_score ?? ''}</span> <span class="muted">${(c.start).toFixed(0)}s–${(c.end).toFixed(0)}s · ${c.final_duration ?? ''}s · ${esc(c.layout || '')}</span></div>
+    <input data-k="post_title" data-id="${id}" value="${esc(c.post_title)}">
+    <textarea rows="4" data-k="post_text" data-id="${id}">${esc(c.post_text)}</textarea>
+    ${c.error ? `<div class="err">${esc(c.error)}</div>` : ''}
+    ${c.status === 'pronto' ? `<div class="plats">
+       <button class="ghost" onclick="pub('${job.id}',${c.n},['youtube'])">Shorts</button>
+       <button class="ghost" onclick="pub('${job.id}',${c.n},['tiktok'])">TikTok</button>
+       <button class="ghost" onclick="pub('${job.id}',${c.n},['instagram'])">Reels</button>
+       <button class="ghost" onclick="pub('${job.id}',${c.n},['youtube','tiktok','instagram'])">Todos</button>
+       <a class="ghost pill" href="/media/${job.id}/${c.file}" download>baixar</a></div>` : ''}
+    ${pubs}
+  </div></div>`;
+}
+
+async function pub(jobId, n, platforms) {
+  await saveEdits(jobId, n);
+  await fetch(`/api/jobs/${jobId}/clips/${n}/publish`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({platforms})});
+  setTimeout(refresh, 800);
+}
+
+async function saveEdits(jobId, n) {
+  const id = `${jobId}-${n}`, body = {};
+  document.querySelectorAll(`[data-id="${id}"]`).forEach(el => body[el.dataset.k] = el.value);
+  await fetch(`/api/jobs/${jobId}/clips/${n}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  editing.delete(id);
+}
+
+document.addEventListener('input', e => { if (e.target.dataset.id) editing.add(e.target.dataset.id); });
+document.addEventListener('focusout', e => {
+  const id = e.target.dataset?.id; if (!id) return;
+  const i = id.lastIndexOf('-'); saveEdits(id.slice(0, i), +id.slice(i + 1));
+});
+
+async function refresh() {
+  if (editing.size || [...document.querySelectorAll('video')].some(v => !v.paused)) return;
+  const list = await (await fetch('/api/jobs')).json();
+  $('#jobs').innerHTML = list.map(j => `<div class="card job">
+    <h3>${esc(j.meta.title || j.url)}</h3>
+    <div class="muted">${esc(j.status)} · ${esc(j.stage)} · <a class="muted" href="${esc(j.url)}" target="_blank">${esc(j.url)}</a></div>
+    ${j.status !== 'concluído' ? `<div class="bar"><div style="width:${(j.progress*100).toFixed(0)}%"></div></div>` : ''}
+    ${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}
+    <div class="clips">${j.clips.map(c => clipCard(j, c)).join('')}</div>
+  </div>`).join('') || '<p class="muted">Nenhum vídeo ainda. Cole um link acima.</p>';
+}
+refresh(); setInterval(refresh, 3000);
+</script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+# ClipForge — do link do YouTube a Shorts, TikTok e Reels
+
+Cole o link de um vídeo do YouTube. O ClipForge:
+
+1. **Baixa** o vídeo (yt-dlp, até 1080p).
+2. **Transcreve** com timestamps de cada palavra (faster-whisper, roda local).
+3. **Escolhe os melhores momentos** com o Claude: trechos com gancho forte, que fazem sentido sozinhos e terminam numa conclusão. Também gera o título de gancho, o título do post, a legenda e as hashtags. Sem chave da API, usa uma heurística simples.
+4. **Edita cada corte** em 1080×1920:
+   - enquadramento vertical que **segue o rosto** de quem fala, trocando de plano com corte seco, sem tremedeira. Quando não há rosto (tela, slides, jogo), usa o vídeo inteiro sobre um **fundo desfocado**;
+   - **jump cuts**: remove silêncios e pausas longas;
+   - **punch-in** (zoom de 8%) alternado a cada jump cut;
+   - **legendas animadas** palavra por palavra, em caixa alta, com destaque colorido e efeito de "pop";
+   - **título-gancho** no topo nos 3 primeiros segundos;
+   - **barra de progresso** no rodapé;
+   - áudio **normalizado em -14 LUFS**, o padrão das plataformas.
+5. **Publica** no YouTube Shorts, no TikTok e no Instagram Reels, automaticamente ou depois de você revisar e editar o texto na interface.
+
+![interface](docs/screenshot.png)
+
+## Instalação
+
+Requisitos: Python 3.10+ e **ffmpeg** com libass (`apt install ffmpeg` ou `brew install ffmpeg`).
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env        # preencha as chaves (veja abaixo)
+python -m clipforge serve   # abra http://localhost:8000
+```
+
+Com Docker: `docker build -t clipforge . && docker run -p 8000:8000 --env-file .env -v $PWD/data:/app/data -v $PWD/tokens:/app/tokens clipforge`
+
+Linha de comando, sem interface:
+
+```bash
+python -m clipforge "https://www.youtube.com/watch?v=XXXX" --clips 6 --max-len 45 --publish youtube,tiktok
+```
+
+Os cortes ficam em `data/jobs/<id>/corte_XX.mp4`.
+
+> Dica: uma GPU NVIDIA deixa a transcrição muito mais rápida (`WHISPER_DEVICE=cuda`, `WHISPER_MODEL=large-v3`). Em CPU, `small` é um bom equilíbrio entre velocidade e qualidade.
+
+## Configurando as contas
+
+### IA (Claude)
+Crie uma chave em https://console.anthropic.com e coloque em `ANTHROPIC_API_KEY`. Sem a chave o app funciona, mas a escolha dos cortes é bem pior.
+
+### YouTube Shorts
+1. No [Google Cloud Console](https://console.cloud.google.com), crie um projeto e ative a **YouTube Data API v3**.
+2. Configure a tela de consentimento OAuth e adicione seu e-mail como usuário de teste.
+3. Crie uma credencial **OAuth client ID → Web application** com o redirect `http://localhost:8000/auth/youtube/callback`.
+4. Baixe o JSON como `client_secret.json` na raiz do projeto.
+5. Na interface, clique em **YouTube conectar**.
+
+Atenção: enquanto o projeto do Google não passar pela auditoria da API, os vídeos enviados podem ficar **privados**. A cota padrão permite cerca de 6 uploads por dia.
+
+### TikTok
+1. Em https://developers.tiktok.com crie um app e adicione os produtos **Login Kit** e **Content Posting API** (com *Direct Post*).
+2. Escopos: `user.info.basic` e `video.publish`. Redirect URI: `http://localhost:8000/auth/tiktok/callback`. O TikTok pode exigir HTTPS; nesse caso use um túnel como ngrok ou cloudflared e ajuste `PUBLIC_BASE_URL`.
+3. Preencha `TIKTOK_CLIENT_KEY` e `TIKTOK_CLIENT_SECRET` e clique em **TikTok conectar**.
+
+Atenção: até o TikTok auditar o app, os posts só podem ser **privados (SELF_ONLY)**. O app ajusta isso sozinho. Depois da auditoria, ficam públicos.
+
+### Instagram Reels
+1. A conta do Instagram precisa ser **Business ou Creator** e estar ligada a uma Página do Facebook.
+2. Crie um app em https://developers.facebook.com com as permissões `instagram_basic`, `instagram_content_publish` e `pages_read_engagement`.
+3. Gere um **token de longa duração** e descubra o **ID da conta do Instagram** (Graph API Explorer: `me/accounts?fields=instagram_business_account`).
+4. Preencha `IG_USER_ID` e `IG_ACCESS_TOKEN`. O upload é *resumable*, então não precisa hospedar o vídeo em URL pública.
+
+## Personalização
+- Fontes: coloque arquivos `.ttf`/`.otf` (ex.: Montserrat ExtraBold, Anton, The Bold Font) em `fonts/` e mude `font` em `DEFAULT_OPTIONS` (`clipforge/jobs.py`).
+- Estilo das legendas: `clipforge/pipeline/subtitles.py` (cores, tamanho, quantidade de palavras por bloco).
+- Critérios de escolha dos cortes: `SYSTEM_PROMPT` em `clipforge/pipeline/highlights.py`.
+
+## Estrutura
+
+```
+clipforge/
+  app.py               servidor web (FastAPI) + rotas OAuth
+  jobs.py              fila e orquestração (download → transcrição → cortes → render → publicação)
+  pipeline/
+    download.py        yt-dlp
+    transcribe.py      faster-whisper com timestamps por palavra
+    highlights.py      escolha dos momentos (Claude, saída JSON estruturada)
+    reframe.py         detecção de rosto e planos para o crop 9:16
+    subtitles.py       legendas ASS animadas e título-gancho
+    render.py          filtergraph do ffmpeg (jump cuts, crop/blur, zoom, legendas, loudnorm)
+  publishers/
+    youtube.py  tiktok.py  instagram.py
+  templates/index.html interface
+```
+
+## Avisos
+- Só corte e publique vídeos **seus** ou que você tenha autorização para usar. Repostar conteúdo de terceiros pode gerar strike de direitos autorais e banimento da conta.
+- Baixar vídeos do YouTube pode violar os Termos de Serviço da plataforma, exceto quando o conteúdo é seu.
+- Publicar o mesmo vídeo em massa sem revisão pode ser tratado como spam pelas plataformas. Por isso o padrão é **revisar antes de publicar**.

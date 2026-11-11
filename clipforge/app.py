@@ -3,22 +3,25 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import html
 import json
 import logging
 import re
 import shutil
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import config, jobs
+from . import config, jobs, oratoria
 from .publishers import tiktok, youtube
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="ClipForge")
+app.include_router(oratoria.router)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
@@ -40,25 +43,31 @@ async def require_password(request: Request, call_next):
         return await call_next(request)
     if request.url.path.startswith("/api/"):
         return JSONResponse({"detail": "não autenticado"}, status_code=401)
-    return RedirectResponse("/login", status_code=303)
+    return RedirectResponse(f"/login?next={quote(request.url.path)}", status_code=303)
+
+
+def _safe_next(path: str) -> str:
+    return path if path.startswith("/") and not path.startswith("//") else "/"
 
 
 @app.get("/login", response_class=HTMLResponse)
-def login_page(erro: int = 0):
+def login_page(erro: int = 0, next: str = "/"):
+    nxt = html.escape(_safe_next(next), quote=True)
     msg = "<p style='color:#ff5c5c'>Senha incorreta.</p>" if erro else ""
     return f"""<!doctype html><meta name=viewport content="width=device-width,initial-scale=1">
 <title>ClipForge</title><body style="background:#0e0f13;color:#eee;font-family:Inter,system-ui;display:grid;place-items:center;height:100vh;margin:0">
 <form method=post style="background:#171920;padding:28px;border-radius:14px;border:1px solid #262a35;display:grid;gap:12px;width:280px">
-<h2 style="margin:0">Clip<span style="color:#ffd400">Forge</span></h2>{msg}
+<h2 style="margin:0">Clip<span style="color:#ffd400">Forge</span></h2>{msg}<input type=hidden name=next value="{nxt}">
 <input type=password name=password placeholder="Senha" autofocus required style="padding:10px;border-radius:8px;border:1px solid #262a35;background:#0e0f13;color:#fff">
 <button style="padding:10px;border:0;border-radius:8px;background:#ffd400;font-weight:700">Entrar</button></form>"""
 
 
 @app.post("/login")
-def login(password: str = Form(...)):
+def login(password: str = Form(...), next: str = Form("/")):
+    nxt = _safe_next(next)
     if not config.APP_PASSWORD or not hmac.compare_digest(password, config.APP_PASSWORD):
-        return RedirectResponse("/login?erro=1", status_code=303)
-    resp = RedirectResponse("/", status_code=303)
+        return RedirectResponse(f"/login?erro=1&next={quote(nxt)}", status_code=303)
+    resp = RedirectResponse(nxt, status_code=303)
     resp.set_cookie(COOKIE, _session_value(), httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30,
                      secure=config.PUBLIC_BASE_URL.startswith("https://"))
     return resp

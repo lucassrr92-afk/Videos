@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e0f13">
+<title>Treino de Oratória</title>
+<style>
+:root{--bg:#0e0f13;--card:#171920;--line:#262a35;--txt:#eceef3;--mut:#9aa1b2;--acc:#ffd400;--ok:#3ddc84;--warn:#ffb020;--bad:#ff5c5c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+header{flex-wrap:wrap;gap:8px}header h1{font-size:18px;margin:0;white-space:nowrap}header h1 span{color:var(--acc)}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav button{background:none;border:1px solid var(--line);color:var(--mut);padding:6px 12px;border-radius:99px;cursor:pointer;font:inherit;font-size:13px}
+nav button.on{background:var(--acc);color:#111;border-color:var(--acc);font-weight:700}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+.grid{display:grid;gap:16px;grid-template-columns:1fr}
+@media(max-width:899px){.grid>div:last-child{order:-1}}
+@media(min-width:900px){.grid{grid-template-columns:1.3fr 1fr}}
+h2{font-size:16px;margin:0 0 10px}h3{font-size:14px;margin:12px 0 6px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+select,input,textarea{width:100%;background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:9px;font:inherit}
+textarea{min-height:110px;resize:vertical}
+.btn{border:0;border-radius:10px;padding:11px 18px;font:inherit;font-weight:700;cursor:pointer;background:var(--acc);color:#111}
+.btn.sec{background:none;border:1px solid var(--line);color:var(--txt);font-weight:500}
+.btn.red{background:var(--bad);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.stage{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:16/9}
+.stage video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.stage .ov{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;padding:12px;pointer-events:none}
+.pill{display:inline-block;background:rgba(0,0,0,.6);padding:4px 10px;border-radius:99px;font-size:13px;font-variant-numeric:tabular-nums}
+.rec{color:var(--bad);font-weight:700}
+.big{font-size:44px;font-weight:800;text-align:center;text-shadow:0 2px 12px #000}
+.topic{background:rgba(0,0,0,.65);padding:10px 12px;border-radius:10px;font-size:16px;font-weight:600}
+.tele{height:150px;overflow:hidden;background:#000;border-radius:10px;padding:10px 14px;font-size:22px;line-height:1.5;margin-top:10px;position:relative}
+.tele div{position:relative;transition:top .1s linear}
+.meters{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:500px){.meters{grid-template-columns:repeat(4,1fr)}}
+.m{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+.m b{display:block;font-size:22px;font-variant-numeric:tabular-nums}.m small{color:var(--mut);font-size:12px}
+.vol{height:8px;background:var(--bg);border-radius:99px;overflow:hidden;margin-top:10px}
+.vol i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--ok),var(--acc),var(--bad));transition:width .08s}
+.trans{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px;min-height:120px;max-height:260px;overflow:auto;font-size:14px}
+.trans mark{background:rgba(255,92,92,.25);color:var(--bad);border-radius:4px;padding:0 2px}
+.trans .int{color:var(--mut)}
+.score{font-size:64px;font-weight:800;line-height:1}
+.bar{height:6px;background:var(--bg);border-radius:99px;overflow:hidden;margin:4px 0 10px}.bar i{display:block;height:100%}
+ul.tips{padding-left:18px;margin:6px 0}ul.tips li{margin:4px 0}
+.muted{color:var(--mut);font-size:13px}
+.hidden{display:none!important}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}th{color:var(--mut);font-weight:500}
+.ai{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:14px}
+.lesson{border-left:3px solid var(--acc);padding:4px 0 4px 12px;margin:12px 0}
+.lesson b{display:block}
+.warnbox{background:rgba(255,176,32,.12);border:1px solid var(--warn);color:var(--warn);padding:10px;border-radius:10px;font-size:13px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Treino de <span>Oratória</span></h1>
+  <nav>
+    <button data-tab="treino" class="on">Treinar</button>
+    <button data-tab="historico">Evolução</button>
+    <button data-tab="dicas">Exercícios</button>
+  </nav>
+</header>
+<main>
+
+<!-- ============ TREINO ============ -->
+<section id="tab-treino">
+  <div id="compat" class="warnbox hidden"></div>
+  <div class="grid">
+    <div>
+      <div class="card">
+        <div class="stage">
+          <video id="cam" autoplay muted playsinline></video>
+          <video id="playback" class="hidden" controls playsinline style="transform:none;position:absolute;inset:0"></video>
+          <div class="ov" id="ov">
+            <div class="row" style="justify-content:space-between">
+              <span class="pill" id="clock">00:00</span>
+              <span class="pill rec hidden" id="recdot">● GRAVANDO</span>
+            </div>
+            <div class="big" id="countdown"></div>
+            <div><div class="topic hidden" id="topicShow"></div></div>
+          </div>
+        </div>
+        <div class="tele hidden" id="tele"><div id="teleText"></div></div>
+        <div class="vol"><i id="volBar"></i></div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" id="btnStart">▶ Começar</button>
+          <button class="btn red hidden" id="btnStop">■ Encerrar</button>
+          <button class="btn sec hidden" id="btnDownload">⬇ Baixar vídeo</button>
+          <button class="btn sec hidden" id="btnAgain">↺ Novo treino</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="meters">
+          <div class="m"><b id="mWpm">0</b><small>palavras/min</small></div>
+          <div class="m"><b id="mFill">0</b><small>vícios</small></div>
+          <div class="m"><b id="mPause">0</b><small>pausas longas</small></div>
+          <div class="m"><b id="mWords">0</b><small>palavras</small></div>
+        </div>
+        <h3>Transcrição ao vivo</h3>
+        <div class="trans" id="trans"><span class="muted">Sua fala aparece aqui enquanto você treina.</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card" id="setup">
+        <h2>Configurar treino</h2>
+        <label>Modo</label>
+        <select id="mode">
+          <option value="improviso">Improviso: tema surpresa</option>
+          <option value="tema">Tema livre: eu escolho</option>
+          <option value="roteiro">Discurso com roteiro (teleprompter)</option>
+          <option value="pitch">Pitch de vendas / apresentação</option>
+          <option value="diccao">Dicção: trava-línguas</option>
+        </select>
+        <div id="boxTema" class="hidden"><label>Sobre o que você vai falar?</label><input id="temaInput" placeholder="Ex.: apresentação do projeto da obra para o cliente"></div>
+        <div id="boxRoteiro" class="hidden"><label>Cole seu roteiro</label><textarea id="roteiroInput" placeholder="Cole aqui o texto da sua apresentação..."></textarea>
+          <label>Velocidade do teleprompter</label><input type="range" id="teleSpeed" min="60" max="200" value="130"><span class="muted" id="teleSpeedLbl">130 palavras/min</span></div>
+        <div id="boxCat"><label>Categoria do tema</label>
+          <select id="cat"><option value="todos">Qualquer uma</option><option value="trabalho">Trabalho e carreira</option><option value="vida">Vida e opinião</option><option value="vendas">Vendas e negociação</option><option value="criativo">Criativo / inusitado</option></select></div>
+        <div class="row">
+          <div style="flex:1"><label>Preparação</label><select id="prep"><option value="0">Sem preparação</option><option value="15">15 s</option><option value="30" selected>30 s</option><option value="60">1 min</option></select></div>
+          <div style="flex:1"><label>Duração alvo</label><select id="dur"><option value="60">1 min</option><option value="90">1 min 30</option><option value="120" selected>2 min</option><option value="180">3 min</option><option value="300">5 min</option><option value="0">Livre</option></select></div>
+        </div>
+        <label style="display:flex;gap:8px;align-items:center;color:var(--txt)"><input type="checkbox" id="useCam" checked style="width:auto"> Gravar vídeo (câmera)</label>
+        <p class="muted">Tudo roda no seu navegador. O vídeo não sai do seu aparelho, a menos que você peça a análise por IA (aí só o texto é enviado).</p>
+      </div>
+
+      <div class="card hidden" id="report">
+        <h2>Resultado</h2>
+        <div class="row" style="align-items:flex-end;gap:16px">
+          <div class="score" id="rScore">0</div>
+          <div><div id="rLabel" style="font-weight:700"></div><div class="muted" id="rSub"></div></div>
+        </div>
+        <div id="rBars" style="margin-top:14px"></div>
+        <h3>O que melhorar</h3>
+        <ul class="tips" id="rTips"></ul>
+        <h3>Vícios de linguagem</h3>
+        <div id="rFillers" class="muted"></div>
+        <h3>Feedback de um coach (IA)</h3>
+        <button class="btn sec" id="btnAI">✨ Analisar minha fala com IA</button>
+        <div class="ai hidden" id="aiOut" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HISTÓRICO ============ -->
+<section id="tab-historico" class="hidden">
+  <div class="card">
+    <h2>Sua evolução</h2>
+    <svg id="chart" viewBox="0 0 600 200" style="width:100%;height:auto"></svg>
+    <p class="muted" id="histEmpty">Faça seu primeiro treino para ver a evolução aqui.</p>
+  </div>
+  <div class="card">
+    <table><thead><tr><th>Data</th><th>Modo</th><th>Duração</th><th>Ritmo</th><th>Vícios/min</th><th>Nota</th></tr></thead><tbody id="histBody"></tbody></table>
+    <div class="row" style="margin-top:12px"><button class="btn sec" id="btnClear">Apagar histórico</button></div>
+  </div>
+</section>
+
+<!-- ============ EXERCÍCIOS ============ -->
+<section id="tab-dicas" class="hidden">
+  <div class="card">
+    <h2>Rotina diária (10 minutos)</h2>
+    <div class="lesson"><b>1. Aquecimento de voz (2 min)</b>Faça "brrr" com os lábios vibrando, subindo e descendo o tom. Depois boceje aberto e solte um "ahhh" relaxado.</div>
+    <div class="lesson"><b>2. Respiração diafragmática (2 min)</b>Inspire pelo nariz em 4 tempos enchendo a barriga, segure 2, solte em 6 com "sss". A fala sai firme quando o ar vem da barriga, não do peito.</div>
+    <div class="lesson"><b>3. Dicção com rolha ou caneta (2 min)</b>Leia um trava-língua com uma caneta presa entre os dentes, depois sem ela. Você vai sentir a articulação mais clara.</div>
+    <div class="lesson"><b>4. Improviso (3 min)</b>Use o modo <i>Improviso</i>: 30 s de preparo, 2 min de fala. Estrutura: abertura com gancho, 3 pontos, fechamento com chamada.</div>
+    <div class="lesson"><b>5. Revisão (1 min)</b>Assista à gravação sem som (gestos e postura) e depois só ouça (voz e ritmo).</div>
+  </div>
+  <div class="card">
+    <h2>Técnicas que funcionam</h2>
+    <div class="lesson"><b>Troque o vício pela pausa</b>Toda vez que viria um "é...", "tipo" ou "né", feche a boca e respire. A pausa de 1 segundo passa segurança; o vício passa insegurança.</div>
+    <div class="lesson"><b>Estrutura PREP</b><b style="display:inline;color:var(--acc)">P</b>onto de vista → <b style="display:inline;color:var(--acc)">R</b>azão → <b style="display:inline;color:var(--acc)">E</b>xemplo → <b style="display:inline;color:var(--acc)">P</b>onto de vista de novo. Serve para responder qualquer pergunta de improviso.</div>
+    <div class="lesson"><b>Ritmo ideal</b>Entre 120 e 160 palavras por minuto. Abaixo disso a fala cansa; acima, o público não acompanha.</div>
+    <div class="lesson"><b>Varie a voz</b>Fale mais baixo e devagar nos pontos importantes. A variação de volume e de tom prende a atenção; a fala monótona faz o público desligar.</div>
+    <div class="lesson"><b>Olho na lente</b>Em vídeo, olhar para a câmera é olhar nos olhos de quem assiste. Em público, escolha 3 pessoas em pontos diferentes da sala e alterne entre elas.</div>
+  </div>
+</section>
+</main>
+
+<script>
+// ======================= dados =======================
+const TOPICS = {
+  trabalho: ["Qual foi o maior erro da sua carreira e o que ele te ensinou?","Convença sua equipe a adotar uma nova ferramenta","Apresente-se em 1 minuto para um cliente importante","Como você lidaria com um projeto atrasado?","O que faz um bom líder?","Explique seu trabalho para uma criança de 10 anos","Defenda um aumento de orçamento para o seu setor","Por que segurança no trabalho é inegociável?","Dê uma má notícia a um cliente sem perder a confiança dele","Qual habilidade todo profissional deveria aprender este ano?"],
+  vida: ["Trabalho remoto ou presencial: qual é melhor?","O livro ou filme que mudou sua forma de pensar","Uma tradição da sua família que vale manter","Redes sociais fazem mais bem ou mal?","O conselho que você daria ao seu eu de 18 anos","Por que vale a pena aprender algo novo depois dos 30?","Sua cidade ideal para morar","O que é sucesso para você?","Um hábito que mudou sua vida","Dinheiro traz felicidade?"],
+  vendas: ["Venda esta caneta para mim","Responda: 'está caro demais'","Apresente um produto que você usa todo dia","Convença alguém a fechar hoje, sem pressionar","Explique por que o barato pode sair caro","Faça um pitch de 1 minuto da sua empresa","Responda a um cliente insatisfeito","Por que seu serviço é diferente do concorrente?"],
+  criativo: ["Defenda que segunda-feira é o melhor dia da semana","Se animais falassem, qual seria o mais chato?","Convença marcianos a visitar a Terra","Faça um discurso de casamento para dois robôs","Explique a internet para alguém de 1850","Seja o advogado de defesa da pizza com abacaxi","Você acordou com um superpoder inútil: qual?","Narre uma partida de futebol entre formigas"]
+};
+const TONGUE = ["O rato roeu a roupa do rei de Roma, e a rainha, com raiva, resolveu remendar.","Três pratos de trigo para três tigres tristes.","O peito do pé de Pedro é preto. Quem disser que o peito do pé de Pedro não é preto tem o peito do pé mais preto que o peito do pé de Pedro.","Sabia que o sabiá sabia assobiar? O sabiá sabia assobiar.","Num ninho de mafagafos há sete mafagafinhos; quem os desmafagafizar bom desmafagafizador será.","A aranha arranha a rã, a rã arranha a aranha; nem a aranha arranha a rã, nem a rã arranha a aranha.","Um tigre, dois tigres, três tigres, quatro tigres tristes.","Bagre branco, branco bagre.","O tempo perguntou pro tempo quanto tempo o tempo tem. O tempo respondeu pro tempo que o tempo tem tanto tempo quanto tempo o tempo tem."];
+const PITCH = ["Apresente sua empresa como se o investidor tivesse só 1 minuto","Apresente uma proposta para um cliente que já tem fornecedor","Abra uma reunião com um gancho que prenda a atenção","Apresente o resultado de um projeto para a diretoria"];
+// vícios: expressões em minúsculas (comparação por palavra/sequência)
+const FILLERS = ["é","éé","ééé","eh","ahn","ãh","ah","hum","hmm","uhm","tipo","tipo assim","né","então","aí","daí","assim","basicamente","na verdade","digamos","sabe","entendeu","beleza","ok","certo","literalmente","enfim","meio que"];
+// "então", "assim", "aí", "certo" só contam quando muito repetidos (podem ser uso legítimo)
+const SOFT = new Set(["então","assim","aí","daí","certo","ok","beleza","enfim","sabe"]);
+
+// ======================= estado =======================
+const $ = id => document.getElementById(id);
+let stream, recorder, chunks = [], videoUrl = null, audioCtx, analyser, rafId;
+let audioRec = null, audioChunks = [], audioBlob = null;
+let recog, recogOn = false, finalText = "", interimText = "", committed = "", sessionFinal = "", recogFatal = false;
+let t0 = 0, timerId, running = false, prepTimer;
+let volSamples = [], silenceStart = 0, pauses = 0, longestPause = 0, speakingMs = 0, lastTick = 0;
+let session = null;
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+// O que o servidor oferece (transcrição do áudio e IA). Sem servidor, tudo fica no navegador.
+let server = {transcribe: false, ai: false};
+// No iPhone, o reconhecimento ao vivo do Safari disputa o microfone com a gravação e falha muito:
+// se o servidor transcreve, usamos ele no final do treino.
+const useLiveRecog = () => !!SR && !(IOS && server.transcribe);
+
+// ======================= abas =======================
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("on", x === b));
+  ["treino","historico","dicas"].forEach(t => $("tab-"+t).classList.toggle("hidden", t !== b.dataset.tab));
+  if (b.dataset.tab === "historico") renderHistory();
+});
+
+// ======================= setup =======================
+function syncMode(){
+  const m = $("mode").value;
+  $("boxTema").classList.toggle("hidden", m !== "tema");
+  $("boxRoteiro").classList.toggle("hidden", m !== "roteiro");
+  $("boxCat").classList.toggle("hidden", m !== "improviso");
+}
+$("mode").onchange = syncMode; syncMode();
+$("teleSpeed").oninput = e => $("teleSpeedLbl").textContent = e.target.value + " palavras/min";
+try { const saved = localStorage.getItem("orat_roteiro"); if (saved) $("roteiroInput").value = saved; } catch(e){}
+
+function warn(msg){ $("compat").textContent = msg; $("compat").classList.toggle("hidden", !msg); }
+function checkCompat(){
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)
+    return warn(IOS
+      ? "O iPhone só libera câmera e microfone em páginas HTTPS. Abra o app pelo endereço https:// do seu servidor (ou do túnel do Cloudflare), no Safari."
+      : "Este navegador não liberou o microfone. Abra o app em HTTPS (ou em localhost).");
+  if (!window.MediaRecorder) return warn("Seu navegador não grava áudio/vídeo. No iPhone, atualize para o iOS 14.3 ou mais recente.");
+  if (useLiveRecog() || server.transcribe) return warn("");
+  warn(IOS
+    ? "Transcrição indisponível: no iPhone, use o Safari (o Chrome e outros apps do iPhone não têm reconhecimento de voz) e ative o Ditado em Ajustes › Geral › Teclado. A gravação e o volume funcionam mesmo assim."
+    : "Seu navegador não tem reconhecimento de voz. Use o Chrome ou o Edge para ver transcrição, ritmo e vícios. A gravação e o volume funcionam mesmo assim.");
+}
+checkCompat();
+if (location.protocol.startsWith("http")) fetch("/api/oratoria/status")
+  .then(r => r.ok ? r.json() : null).then(j => { if (j) { server = j; checkCompat(); } }).catch(() => {});
+
+const pick = a => a[Math.floor(Math.random()*a.length)];
+function chooseTopic(){
+  const m = $("mode").value;
+  if (m === "tema") return $("temaInput").value.trim() || "Tema livre";
+  if (m === "roteiro") return "";
+  if (m === "pitch") return pick(PITCH);
+  if (m === "diccao") return pick(TONGUE);
+  const c = $("cat").value;
+  return pick(c === "todos" ? Object.values(TOPICS).flat() : TOPICS[c]);
+}
+
+// ======================= fluxo =======================
+$("btnStart").onclick = start;
+$("btnStop").onclick = () => stop(false);
+$("btnAgain").onclick = reset;
+
+async function start(){
+  const useCam = $("useCam").checked;
+  if (!navigator.mediaDevices?.getUserMedia) { checkCompat(); alert($("compat").textContent); return; }
+  // O Safari só libera o áudio se o AudioContext nascer dentro do toque, antes de qualquer await.
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch(e){ audioCtx = null; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}, video: useCam ? {facingMode:"user", width:{ideal:1280}, height:{ideal:720}} : false});
+  } catch(e){
+    try { audioCtx?.close(); } catch(_){}
+    const hint = IOS ? "\n\nNo iPhone: Ajustes › Safari › Câmera e Microfone › Permitir (ou toque em \"aA\" na barra de endereço › Ajustes do Site)." : "";
+    alert("Não consegui acessar " + (useCam ? "câmera/microfone" : "o microfone") + ". Verifique a permissão do navegador." + hint + "\n\n(" + e.name + ": " + e.message + ")");
+    return;
+  }
+  $("cam").srcObject = stream; $("cam").classList.remove("hidden"); $("playback").classList.add("hidden");
+  const mode = $("mode").value, topic = chooseTopic();
+  session = {mode, topic, target: +$("dur").value, date: Date.now()};
+  if (mode === "roteiro") { try{localStorage.setItem("orat_roteiro",$("roteiroInput").value)}catch(e){} }
+  $("setup").querySelectorAll("select,input,textarea").forEach(el => el.disabled = true);
+  $("btnStart").classList.add("hidden"); $("report").classList.add("hidden");
+  if (topic) { $("topicShow").textContent = (mode==="diccao" ? "Leia em voz alta, 3 vezes, cada vez mais rápido: " : "Tema: ") + topic; $("topicShow").classList.remove("hidden"); }
+  setupAudio();
+  let prep = mode === "roteiro" ? Math.min(+$("prep").value, 5) || 3 : +$("prep").value;
+  if (prep > 0) {
+    $("countdown").textContent = prep;
+    $("btnStop").classList.remove("hidden");
+    prepTimer = setInterval(() => { prep--; $("countdown").textContent = prep > 0 ? prep : ""; if (prep <= 0) { clearInterval(prepTimer); beginRecording(); } }, 1000);
+  } else beginRecording();
+}
+
+function beginRecording(){
+  running = true; t0 = performance.now(); lastTick = t0;
+  finalText = ""; interimText = ""; committed = ""; sessionFinal = ""; recogFatal = false;
+  volSamples = []; pauses = 0; longestPause = 0; speakingMs = 0; silenceStart = 0;
+  $("trans").innerHTML = useLiveRecog() ? "" : '<span class="muted">' + (server.transcribe ? "Sua fala será transcrita assim que você encerrar o treino." : "Transcrição indisponível neste navegador.") + "</span>";
+  $("recdot").classList.remove("hidden"); $("btnStop").classList.remove("hidden");
+  chunks = []; audioChunks = []; audioBlob = null; audioRec = null;
+  const hasVideo = stream.getVideoTracks().length > 0;
+  const fmts = hasVideo ? ["video/mp4","video/webm;codecs=vp9,opus","video/webm"] : ["audio/mp4","audio/webm;codecs=opus","audio/webm"];
+  if (!IOS) fmts.reverse(); // iPhone grava e reproduz melhor em MP4; Chrome, em WebM
+  const mime = fmts.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported?.(t));
+  try { recorder = new MediaRecorder(stream, mime ? {mimeType:mime} : undefined); recorder.ondataavailable = e => e.data.size && chunks.push(e.data); recorder.start(1000); } catch(e){ recorder = null; }
+  // Só o áudio, à parte, para mandar ao servidor sem subir o vídeo inteiro pela rede do celular.
+  if (hasVideo && server.transcribe && window.MediaRecorder) {
+    const am = (IOS ? ["audio/mp4","audio/webm;codecs=opus"] : ["audio/webm;codecs=opus","audio/mp4"]).find(t => MediaRecorder.isTypeSupported?.(t));
+    try { audioRec = new MediaRecorder(new MediaStream(stream.getAudioTracks()), am ? {mimeType:am} : undefined); audioRec.ondataavailable = e => e.data.size && audioChunks.push(e.data); audioRec.start(1000); } catch(e){ audioRec = null; }
+  }
+  if ($("mode").value === "roteiro") startTele();
+  if (useLiveRecog()) startRecog();
+  timerId = setInterval(tick, 250);
+}
+
+function tick(){
+  const s = (performance.now() - t0)/1000;
+  const target = session.target;
+  const show = target ? Math.max(0, target - s) : s;
+  $("clock").textContent = fmt(show) + (target ? " restantes" : "");
+  $("clock").style.color = target && show < 10 ? "var(--warn)" : "";
+  updateLive();
+  if (target && s >= target + 0.2) stop(false);
+}
+
+function stop(silent){
+  clearInterval(prepTimer); clearInterval(timerId); cancelAnimationFrame(rafId); stopTele();
+  $("countdown").textContent = "";
+  const wasRunning = running; running = false;
+  stopRecog();
+  const stopRec = r => new Promise(res => { if (!r || r.state === "inactive") return res(); r.onstop = () => res(); try { r.stop(); } catch(e){ res(); } });
+  const finish = () => {
+    stream?.getTracks().forEach(t => t.stop());
+    if (audioChunks.length) audioBlob = new Blob(audioChunks, {type: audioRec?.mimeType || "audio/mp4"});
+    else if (chunks.length) audioBlob = new Blob(chunks, {type: recorder?.mimeType || "video/mp4"});
+    try { audioCtx?.close(); } catch(e){}
+    $("recdot").classList.add("hidden"); $("btnStop").classList.add("hidden"); $("btnAgain").classList.remove("hidden");
+    $("volBar").style.width = "0";
+    if (chunks.length) {
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      const blob = new Blob(chunks, {type: recorder?.mimeType || "video/webm"});
+      videoUrl = URL.createObjectURL(blob);
+      $("playback").src = videoUrl; $("playback").classList.remove("hidden"); $("cam").classList.add("hidden"); $("ov").classList.add("hidden");
+      $("btnDownload").classList.remove("hidden");
+    }
+    if (wasRunning && !silent) setTimeout(report, 600); // espera o último resultado do reconhecimento
+  };
+  Promise.all([stopRec(recorder), stopRec(audioRec)]).then(finish);
+}
+
+function reset(){
+  $("setup").querySelectorAll("select,input,textarea").forEach(el => el.disabled = false);
+  $("btnStart").classList.remove("hidden"); $("btnAgain").classList.add("hidden"); $("btnDownload").classList.add("hidden");
+  $("topicShow").classList.add("hidden"); $("playback").classList.add("hidden"); $("playback").removeAttribute("src");
+  $("cam").classList.remove("hidden"); $("cam").srcObject = null; $("ov").classList.remove("hidden"); $("clock").textContent = "00:00";
+  $("report").classList.add("hidden"); $("aiOut").classList.add("hidden");
+  ["mWpm","mFill","mPause","mWords"].forEach(i => $(i).textContent = "0");
+  $("trans").innerHTML = '<span class="muted">Sua fala aparece aqui enquanto você treina.</span>';
+}
+
+$("btnDownload").onclick = () => {
+  const a = document.createElement("a"); a.href = videoUrl;
+  a.download = "treino-oratoria-" + new Date().toISOString().slice(0,16).replace(/[:T]/g,"-") + (recorder?.mimeType?.includes("mp4") ? ".mp4" : ".webm");
+  a.click();
+};
+
+// ======================= áudio: volume e pausas =======================
+function setupAudio(){
+  if (!audioCtx) return;
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  const src = audioCtx.createMediaStreamSource(stream);
+  analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024; src.connect(analyser);
+  const buf = new Float32Array(analyser.fftSize);
+  const loop = () => {
+    analyser.getFloatTimeDomainData(buf);
+    let sum = 0; for (const v of buf) sum += v*v;
+    const rms = Math.sqrt(sum/buf.length), db = 20*Math.log10(rms + 1e-8);
+    $("volBar").style.width = Math.max(0, Math.min(100, (db + 60) * 1.8)) + "%";
+    if (running) {
+      const now = performance.now(), dt = now - lastTick; lastTick = now;
+      const speaking = db > -45;
+      if (speaking) {
+        speakingMs += dt; volSamples.push(db);
+        if (silenceStart) { const p = (now - silenceStart)/1000; if (p >= 2.5) { pauses++; longestPause = Math.max(longestPause, p); } silenceStart = 0; }
+      } else if (!silenceStart) silenceStart = now;
+    }
+    rafId = requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+// ======================= reconhecimento de voz =======================
+function startRecog(){
+  if (!SR) return;
+  recog = new SR(); recog.lang = "pt-BR"; recog.continuous = true; recog.interimResults = true;
+  // Junta trechos; o Safari às vezes repete o texto acumulado em cada resultado, então troca em vez de duplicar.
+  const join = (a, t) => !a ? t : t.toLowerCase().startsWith(a.toLowerCase()) ? t : a + " " + t;
+  recog.onresult = e => {
+    // Reconstrói a sessão inteira a cada evento: funciona no Chrome e no Safari (que nem sempre marca isFinal).
+    let fin = "", inter = "";
+    for (let i = 0; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript.trim(); if (!t) continue;
+      if (e.results[i].isFinal) fin = join(fin, t); else inter = join(inter, t);
+    }
+    sessionFinal = fin; interimText = inter;
+    finalText = (committed + " " + sessionFinal).trim();
+    renderTranscript();
+  };
+  recog.onerror = e => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      recogFatal = true;
+      warn(IOS ? "O iPhone bloqueou o reconhecimento de voz. Ative em Ajustes › Geral › Teclado › Ativar Ditado e permita o Reconhecimento de Fala para o Safari (Ajustes › Privacidade › Reconhecimento de Fala)."
+               : "Permissão de reconhecimento de voz negada.");
+    }
+  };
+  recog.onend = () => {
+    // Guarda o que esta sessão ouviu (no Safari, o trecho final pode ainda estar como provisório).
+    committed = fullTranscript(); sessionFinal = ""; interimText = "";
+    finalText = committed;
+    if (running && recogOn && !recogFatal) setTimeout(() => { if (running && recogOn) try { recog.start(); } catch(e){} }, 250); // reinicia
+  };
+  recogOn = true; try { recog.start(); } catch(e){}
+}
+// Para sem descartar nada: o último resultado ainda pode chegar; onend guarda o que faltar.
+function stopRecog(){ recogOn = false; try { recog?.stop(); } catch(e){} }
+const fullTranscript = () => [committed, sessionFinal, interimText].filter(Boolean).join(" ").trim();
+
+const norm = s => s.toLowerCase().normalize("NFC").replace(/[.,!?;:()"“”…]/g," ").replace(/\s+/g," ").trim();
+const words = s => norm(s).split(" ").filter(Boolean);
+
+function countFillers(text){
+  const w = words(text), counts = {};
+  for (let i = 0; i < w.length; i++) {
+    const two = w[i] + " " + (w[i+1] || "");
+    let hit = FILLERS.includes(two) ? two : FILLERS.includes(w[i]) ? w[i] : null;
+    if (!hit) continue;
+    // "é" sozinho só conta se vier no início, repetido, ou cercado de outro vício (o verbo "é" é comum)
+    if (hit === "é" && !(i === 0 || w[i-1] === "é" || w[i+1] === "é" || FILLERS.includes(w[i-1]))) continue;
+    counts[hit] = (counts[hit] || 0) + 1;
+    if (hit.includes(" ")) i++;
+  }
+  // vícios "suaves" só entram se aparecerem 3+ vezes
+  let total = 0;
+  for (const k of Object.keys(counts)) { if (SOFT.has(k) && counts[k] < 3) delete counts[k]; else total += counts[k]; }
+  return {counts, total};
+}
+
+function renderTranscript(){
+  const fill = new Set(Object.keys(countFillers(finalText).counts));
+  const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const html = esc(finalText).split(/(\s+)/).map(tok => fill.has(norm(tok)) && norm(tok) ? `<mark>${tok}</mark>` : tok).join("");
+  $("trans").innerHTML = html + (interimText ? ` <span class="int">${esc(interimText)}</span>` : "");
+  $("trans").scrollTop = $("trans").scrollHeight;
+}
+
+function updateLive(){
+  const all = finalText + " " + interimText, n = words(all).length;
+  const min = (performance.now() - t0)/60000;
+  $("mWords").textContent = n;
+  $("mWpm").textContent = min > 0.1 ? Math.round(n/min) : 0;
+  $("mFill").textContent = countFillers(finalText).total;
+  $("mPause").textContent = pauses;
+}
+
+// ======================= teleprompter =======================
+let teleRaf;
+function startTele(){
+  const txt = $("roteiroInput").value.trim(); if (!txt) return;
+  $("tele").classList.remove("hidden"); $("teleText").textContent = txt; $("teleText").style.top = "0px";
+  const totalWords = words(txt).length, wpm = +$("teleSpeed").value;
+  const start = performance.now();
+  const step = () => {
+    const el = $("teleText"), maxScroll = el.scrollHeight - 100;
+    const progress = Math.min(1, ((performance.now()-start)/60000 * wpm) / totalWords);
+    el.style.top = (-progress * maxScroll) + "px";
+    if (progress < 1 && running) teleRaf = requestAnimationFrame(step);
+  };
+  step();
+}
+function stopTele(){ cancelAnimationFrame(teleRaf); $("tele").classList.add("hidden"); }
+
+// ======================= relatório =======================
+const fmt = s => String(Math.floor(s/60)).padStart(2,"0") + ":" + String(Math.floor(s%60)).padStart(2,"0");
+const clamp = (v,a=0,b=100) => Math.max(a, Math.min(b, v));
+let lastReport = null;
+
+async function serverTranscribe(){
+  const ext = (audioBlob.type.includes("mp4") ? "m4a" : "webm");
+  const fd = new FormData(); fd.append("file", audioBlob, "fala." + ext);
+  const r = await fetch("/api/oratoria/transcribe", {method:"POST", body: fd});
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || ("HTTP " + r.status));
+  return r.json();
+}
+
+async function report(){
+  const dur = (lastTick - t0)/1000;
+  let text = fullTranscript(), source = text ? "ao vivo" : "";
+  let wPauses = null;
+  if (!words(text).length && server.transcribe && audioBlob) {
+    $("report").classList.remove("hidden"); $("rScore").textContent = "…"; $("rScore").style.color = "";
+    $("rLabel").textContent = "Transcrevendo sua fala…"; $("rSub").textContent = "Isso leva alguns segundos.";
+    $("rBars").innerHTML = $("rTips").innerHTML = $("rFillers").innerHTML = "";
+    $("report").scrollIntoView({behavior:"smooth", block:"start"});
+    try {
+      const j = await serverTranscribe();
+      text = (j.text || "").trim(); source = "servidor";
+      // pausas reais entre palavras (mais confiáveis que o volume no celular)
+      wPauses = {n: 0, max: 0};
+      for (let i = 1; i < (j.words || []).length; i++) { const g = j.words[i].start - j.words[i-1].end; if (g >= 2.5) { wPauses.n++; wPauses.max = Math.max(wPauses.max, g); } }
+    } catch(e) { warn("Não consegui transcrever no servidor: " + e.message); }
+  }
+  finalText = text; interimText = ""; renderTranscript();
+  if (wPauses) { pauses = wPauses.n; longestPause = wPauses.max; $("mPause").textContent = pauses; }
+  const n = words(text).length, min = Math.max(dur/60, 0.05);
+  const wpm = Math.round(n/min);
+  $("mWords").textContent = n; $("mWpm").textContent = n ? wpm : 0;
+  const f = countFillers(text), fpm = f.total/min;
+  $("mFill").textContent = f.total;
+  // variação de volume (desvio padrão em dB): fala monótona < 4 dB. Sem medição de volume, não avalia.
+  const hasVol = volSamples.length > 30;
+  const mean = volSamples.reduce((a,b)=>a+b,0)/(volSamples.length||1);
+  const sd = Math.sqrt(volSamples.reduce((a,b)=>a+(b-mean)**2,0)/(volSamples.length||1));
+  const talkRatio = speakingMs/(dur*1000 || 1);
+  const hasSR = n > 0;
+
+  const s = {};
+  s.ritmo   = hasSR ? clamp(100 - Math.max(0, Math.abs(wpm - 140) - 15) * 1.6) : null;
+  s.clareza = hasSR ? clamp(100 - fpm * 12) : null;
+  s.fluencia= clamp(100 - pauses * 8 - (hasVol ? Math.max(0, 0.55 - talkRatio) * 150 : 0));
+  s.voz     = hasVol ? clamp(40 + sd * 9) : null;
+  s.tempo   = session.target ? clamp(100 - Math.abs(dur - session.target)/session.target * 200) : 100;
+  const weights = {ritmo:.25, clareza:.3, fluencia:.2, voz:.15, tempo:.1};
+  let tot = 0, wsum = 0; for (const k in weights) if (s[k] != null) { tot += s[k]*weights[k]; wsum += weights[k]; }
+  const score = Math.round(tot/wsum);
+
+  const tips = [];
+  if (hasSR && wpm > 165) tips.push(`Você falou a ${wpm} palavras/min, rápido demais. Respire entre as frases e mire em 130 a 150.`);
+  if (hasSR && wpm < 110) tips.push(`Ritmo de ${wpm} palavras/min, lento. Prepare 3 pontos antes de começar para a fala fluir com mais energia.`);
+  if (hasSR && fpm > 3) tips.push(`${f.total} vícios de linguagem (${fpm.toFixed(1)} por minuto). Quando sentir o "é..." chegando, troque por uma pausa em silêncio.`);
+  if (pauses > 2) tips.push(`${pauses} pausas longas (a maior com ${longestPause.toFixed(1)} s). Pausas curtas são ótimas; as longas indicam que você perdeu o fio. Use a estrutura PREP.`);
+  if (hasVol && sd < 4) tips.push("Voz monótona: o volume variou pouco. Fale mais baixo e mais devagar nos pontos-chave e mais forte nas conclusões.");
+  if (session.target && dur < session.target * 0.75) tips.push(`Você encerrou em ${fmt(dur)}, antes do tempo alvo de ${fmt(session.target)}. Treine desenvolver cada ponto com um exemplo.`);
+  if (!hasSR && (useLiveRecog() || server.transcribe)) tips.push("Não captei nenhuma palavra. Confira se o microfone está liberado e fale mais perto dele.");
+  else if (!hasSR) tips.push(IOS ? "Sem transcrição: no iPhone, use o Safari com o Ditado ativado (Ajustes › Geral › Teclado), ou rode o app no servidor ClipForge, que transcreve sozinho." : "Sem transcrição neste navegador: use o Chrome ou o Edge para medir ritmo e vícios.");
+  if (!tips.length) tips.push("Excelente! Agora aumente o desafio: menos tempo de preparo ou um tema mais difícil.");
+
+  const label = score >= 85 ? "Orador confiante" : score >= 70 ? "Muito bom" : score >= 55 ? "No caminho certo" : "Continue treinando";
+  $("rScore").textContent = score; $("rScore").style.color = score >= 70 ? "var(--ok)" : score >= 55 ? "var(--warn)" : "var(--bad)";
+  $("rLabel").textContent = label;
+  $("rSub").textContent = `${fmt(dur)} · ${n} palavras` + (hasSR ? ` · ${wpm} palavras/min` : "") + (source === "servidor" ? " · transcrito no servidor" : "");
+  const names = {ritmo:"Ritmo", clareza:"Clareza (sem vícios)", fluencia:"Fluência", voz:"Expressividade da voz", tempo:"Controle do tempo"};
+  $("rBars").innerHTML = Object.keys(names).filter(k => s[k] != null).map(k => {
+    const v = Math.round(s[k]), c = v >= 70 ? "var(--ok)" : v >= 50 ? "var(--warn)" : "var(--bad)";
+    return `<div class="row" style="justify-content:space-between;font-size:13px"><span>${names[k]}</span><b>${v}</b></div><div class="bar"><i style="width:${v}%;background:${c}"></i></div>`;
+  }).join("");
+  $("rTips").innerHTML = tips.map(t => `<li>${t}</li>`).join("");
+  const fl = Object.entries(f.counts).sort((a,b)=>b[1]-a[1]);
+  $("rFillers").innerHTML = fl.length ? fl.map(([k,v]) => `"${k}" ×${v}`).join(" · ") : (hasSR ? "Nenhum vício detectado. Muito bem!" : "—");
+  $("report").classList.remove("hidden"); $("aiOut").classList.add("hidden");
+  $("report").scrollIntoView({behavior:"smooth", block:"start"});
+
+  lastReport = {mode: session.mode, topic: session.topic, date: session.date, dur: Math.round(dur), words: n, wpm: hasSR ? wpm : null,
+    fillers: f.total, fpm: hasSR ? +fpm.toFixed(1) : null, fillerList: f.counts, pauses, longestPause: +longestPause.toFixed(1), volSd: hasVol ? +sd.toFixed(1) : 0, score, transcript: text};
+  saveHistory(lastReport);
+}
+
+// ======================= IA =======================
+$("btnAI").onclick = async () => {
+  if (!lastReport) return;
+  if (!lastReport.transcript) { $("aiOut").textContent = (IOS ? "Não há transcrição para analisar. No iPhone, ative o Ditado (Ajustes › Geral › Teclado) e use o Safari." : "Não há transcrição para analisar. Use o Chrome ou o Edge."); $("aiOut").classList.remove("hidden"); return; }
+  $("btnAI").disabled = true; $("aiOut").classList.remove("hidden"); $("aiOut").textContent = "Analisando sua fala…";
+  try {
+    const r = await fetch("/api/oratoria/feedback", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(lastReport)});
+    if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || ("HTTP " + r.status));
+    $("aiOut").textContent = (await r.json()).feedback;
+  } catch(e) {
+    $("aiOut").textContent = "Análise por IA indisponível: " + e.message + "\n\nEla funciona quando o app roda junto com o servidor ClipForge (python -m clipforge serve) com ANTHROPIC_API_KEY configurada.";
+  } finally { $("btnAI").disabled = false; }
+};
+
+// ======================= histórico =======================
+const MODES = {improviso:"Improviso", tema:"Tema livre", roteiro:"Roteiro", pitch:"Pitch", diccao:"Dicção"};
+function loadHistory(){ try { return JSON.parse(localStorage.getItem("orat_hist") || "[]"); } catch(e){ return []; } }
+function saveHistory(r){ try { const h = loadHistory(); const {transcript, ...rest} = r; h.push({...rest, transcript: transcript.slice(0, 4000)}); localStorage.setItem("orat_hist", JSON.stringify(h.slice(-200))); } catch(e){} }
+$("btnClear").onclick = () => { if (confirm("Apagar todo o histórico de treinos?")) { try{localStorage.removeItem("orat_hist")}catch(e){} renderHistory(); } };
+
+function renderHistory(){
+  const h = loadHistory();
+  $("histEmpty").classList.toggle("hidden", h.length > 0);
+  $("histBody").innerHTML = h.slice().reverse().map(r => `<tr><td>${new Date(r.date).toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})} ${new Date(r.date).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}</td><td>${MODES[r.mode]||r.mode}</td><td>${fmt(r.dur)}</td><td>${r.wpm ?? "—"}</td><td>${r.fpm ?? "—"}</td><td><b>${r.score}</b></td></tr>`).join("");
+  const svg = $("chart"); svg.innerHTML = "";
+  if (h.length < 1) return;
+  const pts = h.slice(-30), W = 600, H = 200, P = 30;
+  const x = i => P + (pts.length === 1 ? (W-2*P)/2 : i * (W-2*P)/(pts.length-1)), y = v => H - P - v/100*(H-2*P);
+  let g = "";
+  for (const v of [0,50,100]) g += `<line x1="${P}" x2="${W-P}" y1="${y(v)}" y2="${y(v)}" stroke="#262a35"/><text x="4" y="${y(v)+4}" fill="#9aa1b2" font-size="11">${v}</text>`;
+  g += `<polyline fill="none" stroke="#ffd400" stroke-width="2.5" points="${pts.map((r,i)=>x(i)+","+y(r.score)).join(" ")}"/>`;
+  g += pts.map((r,i)=>`<circle cx="${x(i)}" cy="${y(r.score)}" r="4" fill="#ffd400"><title>${new Date(r.date).toLocaleDateString("pt-BR")}: ${r.score}</title></circle>`).join("");
+  svg.innerHTML = g;
+}
+</script>
+</body>
+</html>

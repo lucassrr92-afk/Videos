@@ -17,6 +17,20 @@ App web **de uso pessoal**. Você envia um vídeo (ou cola um link do YouTube) e
 
 ![interface](docs/screenshot.png)
 
+## Treino de Oratória
+
+Um app para treinar a fala em público, em `oratoria/index.html`. Com o servidor rodando, abra **http://localhost:8000/oratoria**. O arquivo também abre sozinho, sem servidor; nesse caso só a análise por IA fica desligada.
+
+- **Modos:** improviso com tema surpresa, tema livre, discurso com roteiro (teleprompter), pitch de vendas e dicção com trava-línguas.
+- **Durante o treino:** grava câmera e microfone, mostra a transcrição ao vivo, as palavras por minuto, os vícios de linguagem destacados ("é…", "tipo", "né", "então"…), as pausas longas e o volume.
+- **No final:** uma nota de 0 a 100 dividida em ritmo, clareza, fluência, expressividade da voz e controle do tempo, com dicas práticas. Você pode baixar o vídeo e pedir o feedback de um coach gerado pelo Claude (precisa de `ANTHROPIC_API_KEY`; só o texto é enviado).
+- **Evolução:** o histórico e o gráfico das notas ficam salvos no navegador. A aba Exercícios traz uma rotina diária de 10 minutos.
+
+**Onde funciona:**
+- **iPhone:** abra pelo endereço `https://…/oratoria` do servidor, no Safari. O iPhone só libera câmera e microfone em HTTPS. Com o servidor, a fala é transcrita no final do treino pelo Whisper, o mesmo motor dos cortes, sem depender do Ditado do iPhone. Sem o servidor, a transcrição usa o Ditado do iOS (Ajustes › Geral › Teclado › Ativar Ditado) e só funciona no Safari: o Chrome e outros apps do iPhone não têm reconhecimento de voz.
+- **Android e computador:** Chrome ou Edge, com transcrição ao vivo.
+- Se `APP_PASSWORD` estiver definida, o login volta direto para `/oratoria`.
+
 ## Instalação
 
 Requisitos: Python 3.10+ e **ffmpeg** com libass (`apt install ffmpeg` ou `brew install ffmpeg`).

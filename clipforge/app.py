@@ -14,11 +14,12 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from . import config, jobs
+from . import config, jobs, oratoria
 from .publishers import tiktok, youtube
 
 logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="ClipForge")
+app.include_router(oratoria.router)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}

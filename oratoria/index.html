@@ -204,11 +204,18 @@ const SOFT = new Set(["então","assim","aí","daí","certo","ok","beleza","enfim
 // ======================= estado =======================
 const $ = id => document.getElementById(id);
 let stream, recorder, chunks = [], videoUrl = null, audioCtx, analyser, rafId;
-let recog, recogOn = false, finalText = "", interimText = "";
+let audioRec = null, audioChunks = [], audioBlob = null;
+let recog, recogOn = false, finalText = "", interimText = "", committed = "", sessionFinal = "", recogFatal = false;
 let t0 = 0, timerId, running = false, prepTimer;
 let volSamples = [], silenceStart = 0, pauses = 0, longestPause = 0, speakingMs = 0, lastTick = 0;
 let session = null;
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+// O que o servidor oferece (transcrição do áudio e IA). Sem servidor, tudo fica no navegador.
+let server = {transcribe: false, ai: false};
+// No iPhone, o reconhecimento ao vivo do Safari disputa o microfone com a gravação e falha muito:
+// se o servidor transcreve, usamos ele no final do treino.
+const useLiveRecog = () => !!SR && !(IOS && server.transcribe);
 
 // ======================= abas =======================
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
@@ -228,8 +235,21 @@ $("mode").onchange = syncMode; syncMode();
 $("teleSpeed").oninput = e => $("teleSpeedLbl").textContent = e.target.value + " palavras/min";
 try { const saved = localStorage.getItem("orat_roteiro"); if (saved) $("roteiroInput").value = saved; } catch(e){}
 
-if (!SR) { $("compat").textContent = "Seu navegador não tem reconhecimento de voz. Use o Chrome (computador ou Android) ou o Edge para ver transcrição, ritmo e vícios. A gravação e o volume funcionam mesmo assim."; $("compat").classList.remove("hidden"); }
-if (!navigator.mediaDevices?.getUserMedia) { $("compat").textContent = "Este navegador não permite acesso ao microfone. Abra o app em HTTPS ou em localhost, no Chrome."; $("compat").classList.remove("hidden"); }
+function warn(msg){ $("compat").textContent = msg; $("compat").classList.toggle("hidden", !msg); }
+function checkCompat(){
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia)
+    return warn(IOS
+      ? "O iPhone só libera câmera e microfone em páginas HTTPS. Abra o app pelo endereço https:// do seu servidor (ou do túnel do Cloudflare), no Safari."
+      : "Este navegador não liberou o microfone. Abra o app em HTTPS (ou em localhost).");
+  if (!window.MediaRecorder) return warn("Seu navegador não grava áudio/vídeo. No iPhone, atualize para o iOS 14.3 ou mais recente.");
+  if (useLiveRecog() || server.transcribe) return warn("");
+  warn(IOS
+    ? "Transcrição indisponível: no iPhone, use o Safari (o Chrome e outros apps do iPhone não têm reconhecimento de voz) e ative o Ditado em Ajustes › Geral › Teclado. A gravação e o volume funcionam mesmo assim."
+    : "Seu navegador não tem reconhecimento de voz. Use o Chrome ou o Edge para ver transcrição, ritmo e vícios. A gravação e o volume funcionam mesmo assim.");
+}
+checkCompat();
+if (location.protocol.startsWith("http")) fetch("/api/oratoria/status")
+  .then(r => r.ok ? r.json() : null).then(j => { if (j) { server = j; checkCompat(); } }).catch(() => {});
 
 const pick = a => a[Math.floor(Math.random()*a.length)];
 function chooseTopic(){
@@ -249,9 +269,17 @@ $("btnAgain").onclick = reset;
 
 async function start(){
   const useCam = $("useCam").checked;
+  if (!navigator.mediaDevices?.getUserMedia) { checkCompat(); alert($("compat").textContent); return; }
+  // O Safari só libera o áudio se o AudioContext nascer dentro do toque, antes de qualquer await.
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch(e){ audioCtx = null; }
   try {
     stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}, video: useCam ? {facingMode:"user", width:{ideal:1280}, height:{ideal:720}} : false});
-  } catch(e){ alert("Não consegui acessar " + (useCam ? "câmera/microfone" : "o microfone") + ". Verifique a permissão do navegador.\n\n" + e.message); return; }
+  } catch(e){
+    try { audioCtx?.close(); } catch(_){}
+    const hint = IOS ? "\n\nNo iPhone: Ajustes › Safari › Câmera e Microfone › Permitir (ou toque em \"aA\" na barra de endereço › Ajustes do Site)." : "";
+    alert("Não consegui acessar " + (useCam ? "câmera/microfone" : "o microfone") + ". Verifique a permissão do navegador." + hint + "\n\n(" + e.name + ": " + e.message + ")");
+    return;
+  }
   $("cam").srcObject = stream; $("cam").classList.remove("hidden"); $("playback").classList.add("hidden");
   const mode = $("mode").value, topic = chooseTopic();
   session = {mode, topic, target: +$("dur").value, date: Date.now()};
@@ -270,14 +298,23 @@ async function start(){
 
 function beginRecording(){
   running = true; t0 = performance.now(); lastTick = t0;
-  finalText = ""; interimText = ""; volSamples = []; pauses = 0; longestPause = 0; speakingMs = 0; silenceStart = 0;
-  $("trans").innerHTML = "";
+  finalText = ""; interimText = ""; committed = ""; sessionFinal = ""; recogFatal = false;
+  volSamples = []; pauses = 0; longestPause = 0; speakingMs = 0; silenceStart = 0;
+  $("trans").innerHTML = useLiveRecog() ? "" : '<span class="muted">' + (server.transcribe ? "Sua fala será transcrita assim que você encerrar o treino." : "Transcrição indisponível neste navegador.") + "</span>";
   $("recdot").classList.remove("hidden"); $("btnStop").classList.remove("hidden");
-  chunks = [];
-  const mime = ["video/webm;codecs=vp9,opus","video/webm","video/mp4","audio/webm","audio/mp4"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t));
+  chunks = []; audioChunks = []; audioBlob = null; audioRec = null;
+  const hasVideo = stream.getVideoTracks().length > 0;
+  const fmts = hasVideo ? ["video/mp4","video/webm;codecs=vp9,opus","video/webm"] : ["audio/mp4","audio/webm;codecs=opus","audio/webm"];
+  if (!IOS) fmts.reverse(); // iPhone grava e reproduz melhor em MP4; Chrome, em WebM
+  const mime = fmts.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported?.(t));
   try { recorder = new MediaRecorder(stream, mime ? {mimeType:mime} : undefined); recorder.ondataavailable = e => e.data.size && chunks.push(e.data); recorder.start(1000); } catch(e){ recorder = null; }
+  // Só o áudio, à parte, para mandar ao servidor sem subir o vídeo inteiro pela rede do celular.
+  if (hasVideo && server.transcribe && window.MediaRecorder) {
+    const am = (IOS ? ["audio/mp4","audio/webm;codecs=opus"] : ["audio/webm;codecs=opus","audio/mp4"]).find(t => MediaRecorder.isTypeSupported?.(t));
+    try { audioRec = new MediaRecorder(new MediaStream(stream.getAudioTracks()), am ? {mimeType:am} : undefined); audioRec.ondataavailable = e => e.data.size && audioChunks.push(e.data); audioRec.start(1000); } catch(e){ audioRec = null; }
+  }
   if ($("mode").value === "roteiro") startTele();
-  startRecog();
+  if (useLiveRecog()) startRecog();
   timerId = setInterval(tick, 250);
 }
 
@@ -296,8 +333,11 @@ function stop(silent){
   $("countdown").textContent = "";
   const wasRunning = running; running = false;
   stopRecog();
+  const stopRec = r => new Promise(res => { if (!r || r.state === "inactive") return res(); r.onstop = () => res(); try { r.stop(); } catch(e){ res(); } });
   const finish = () => {
     stream?.getTracks().forEach(t => t.stop());
+    if (audioChunks.length) audioBlob = new Blob(audioChunks, {type: audioRec?.mimeType || "audio/mp4"});
+    else if (chunks.length) audioBlob = new Blob(chunks, {type: recorder?.mimeType || "video/mp4"});
     try { audioCtx?.close(); } catch(e){}
     $("recdot").classList.add("hidden"); $("btnStop").classList.add("hidden"); $("btnAgain").classList.remove("hidden");
     $("volBar").style.width = "0";
@@ -310,7 +350,7 @@ function stop(silent){
     }
     if (wasRunning && !silent) setTimeout(report, 600); // espera o último resultado do reconhecimento
   };
-  if (recorder && recorder.state !== "inactive") { recorder.onstop = finish; recorder.stop(); } else finish();
+  Promise.all([stopRec(recorder), stopRec(audioRec)]).then(finish);
 }
 
 function reset(){
@@ -331,7 +371,8 @@ $("btnDownload").onclick = () => {
 
 // ======================= áudio: volume e pausas =======================
 function setupAudio(){
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!audioCtx) return;
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
   const src = audioCtx.createMediaStreamSource(stream);
   analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024; src.connect(analyser);
   const buf = new Float32Array(analyser.fftSize);
@@ -357,19 +398,37 @@ function setupAudio(){
 function startRecog(){
   if (!SR) return;
   recog = new SR(); recog.lang = "pt-BR"; recog.continuous = true; recog.interimResults = true;
+  // Junta trechos; o Safari às vezes repete o texto acumulado em cada resultado, então troca em vez de duplicar.
+  const join = (a, t) => !a ? t : t.toLowerCase().startsWith(a.toLowerCase()) ? t : a + " " + t;
   recog.onresult = e => {
-    interimText = "";
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const r = e.results[i];
-      if (r.isFinal) finalText += r[0].transcript.trim() + " "; else interimText += r[0].transcript;
+    // Reconstrói a sessão inteira a cada evento: funciona no Chrome e no Safari (que nem sempre marca isFinal).
+    let fin = "", inter = "";
+    for (let i = 0; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript.trim(); if (!t) continue;
+      if (e.results[i].isFinal) fin = join(fin, t); else inter = join(inter, t);
     }
+    sessionFinal = fin; interimText = inter;
+    finalText = (committed + " " + sessionFinal).trim();
     renderTranscript();
   };
-  recog.onerror = e => { if (e.error === "not-allowed") { $("compat").textContent = "Permissão de reconhecimento de voz negada."; $("compat").classList.remove("hidden"); } };
-  recog.onend = () => { if (running && recogOn) try { recog.start(); } catch(e){} }; // o Chrome para sozinho: reinicia
+  recog.onerror = e => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      recogFatal = true;
+      warn(IOS ? "O iPhone bloqueou o reconhecimento de voz. Ative em Ajustes › Geral › Teclado › Ativar Ditado e permita o Reconhecimento de Fala para o Safari (Ajustes › Privacidade › Reconhecimento de Fala)."
+               : "Permissão de reconhecimento de voz negada.");
+    }
+  };
+  recog.onend = () => {
+    // Guarda o que esta sessão ouviu (no Safari, o trecho final pode ainda estar como provisório).
+    committed = fullTranscript(); sessionFinal = ""; interimText = "";
+    finalText = committed;
+    if (running && recogOn && !recogFatal) setTimeout(() => { if (running && recogOn) try { recog.start(); } catch(e){} }, 250); // reinicia
+  };
   recogOn = true; try { recog.start(); } catch(e){}
 }
-function stopRecog(){ recogOn = false; try { recog?.stop(); } catch(e){} if (interimText) { finalText += interimText + " "; interimText = ""; } }
+// Para sem descartar nada: o último resultado ainda pode chegar; onend guarda o que faltar.
+function stopRecog(){ recogOn = false; try { recog?.stop(); } catch(e){} }
+const fullTranscript = () => [committed, sessionFinal, interimText].filter(Boolean).join(" ").trim();
 
 const norm = s => s.toLowerCase().normalize("NFC").replace(/[.,!?;:()"“”…]/g," ").replace(/\s+/g," ").trim();
 const words = s => norm(s).split(" ").filter(Boolean);
@@ -395,7 +454,7 @@ function renderTranscript(){
   const fill = new Set(Object.keys(countFillers(finalText).counts));
   const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   const html = esc(finalText).split(/(\s+)/).map(tok => fill.has(norm(tok)) && norm(tok) ? `<mark>${tok}</mark>` : tok).join("");
-  $("trans").innerHTML = html + `<span class="int">${esc(interimText)}</span>`;
+  $("trans").innerHTML = html + (interimText ? ` <span class="int">${esc(interimText)}</span>` : "");
   $("trans").scrollTop = $("trans").scrollHeight;
 }
 
@@ -430,22 +489,50 @@ const fmt = s => String(Math.floor(s/60)).padStart(2,"0") + ":" + String(Math.fl
 const clamp = (v,a=0,b=100) => Math.max(a, Math.min(b, v));
 let lastReport = null;
 
-function report(){
+async function serverTranscribe(){
+  const ext = (audioBlob.type.includes("mp4") ? "m4a" : "webm");
+  const fd = new FormData(); fd.append("file", audioBlob, "fala." + ext);
+  const r = await fetch("/api/oratoria/transcribe", {method:"POST", body: fd});
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || ("HTTP " + r.status));
+  return r.json();
+}
+
+async function report(){
   const dur = (lastTick - t0)/1000;
-  const text = finalText.trim(), n = words(text).length, min = Math.max(dur/60, 0.05);
+  let text = fullTranscript(), source = text ? "ao vivo" : "";
+  let wPauses = null;
+  if (!words(text).length && server.transcribe && audioBlob) {
+    $("report").classList.remove("hidden"); $("rScore").textContent = "…"; $("rScore").style.color = "";
+    $("rLabel").textContent = "Transcrevendo sua fala…"; $("rSub").textContent = "Isso leva alguns segundos.";
+    $("rBars").innerHTML = $("rTips").innerHTML = $("rFillers").innerHTML = "";
+    $("report").scrollIntoView({behavior:"smooth", block:"start"});
+    try {
+      const j = await serverTranscribe();
+      text = (j.text || "").trim(); source = "servidor";
+      // pausas reais entre palavras (mais confiáveis que o volume no celular)
+      wPauses = {n: 0, max: 0};
+      for (let i = 1; i < (j.words || []).length; i++) { const g = j.words[i].start - j.words[i-1].end; if (g >= 2.5) { wPauses.n++; wPauses.max = Math.max(wPauses.max, g); } }
+    } catch(e) { warn("Não consegui transcrever no servidor: " + e.message); }
+  }
+  finalText = text; interimText = ""; renderTranscript();
+  if (wPauses) { pauses = wPauses.n; longestPause = wPauses.max; $("mPause").textContent = pauses; }
+  const n = words(text).length, min = Math.max(dur/60, 0.05);
   const wpm = Math.round(n/min);
+  $("mWords").textContent = n; $("mWpm").textContent = n ? wpm : 0;
   const f = countFillers(text), fpm = f.total/min;
-  // variação de volume (desvio padrão em dB): fala monótona < 4 dB
+  $("mFill").textContent = f.total;
+  // variação de volume (desvio padrão em dB): fala monótona < 4 dB. Sem medição de volume, não avalia.
+  const hasVol = volSamples.length > 30;
   const mean = volSamples.reduce((a,b)=>a+b,0)/(volSamples.length||1);
   const sd = Math.sqrt(volSamples.reduce((a,b)=>a+(b-mean)**2,0)/(volSamples.length||1));
   const talkRatio = speakingMs/(dur*1000 || 1);
-  const hasSR = !!SR && n > 0;
+  const hasSR = n > 0;
 
   const s = {};
   s.ritmo   = hasSR ? clamp(100 - Math.max(0, Math.abs(wpm - 140) - 15) * 1.6) : null;
   s.clareza = hasSR ? clamp(100 - fpm * 12) : null;
-  s.fluencia= clamp(100 - pauses * 8 - Math.max(0, 0.55 - talkRatio) * 150);
-  s.voz     = clamp(40 + sd * 9);
+  s.fluencia= clamp(100 - pauses * 8 - (hasVol ? Math.max(0, 0.55 - talkRatio) * 150 : 0));
+  s.voz     = hasVol ? clamp(40 + sd * 9) : null;
   s.tempo   = session.target ? clamp(100 - Math.abs(dur - session.target)/session.target * 200) : 100;
   const weights = {ritmo:.25, clareza:.3, fluencia:.2, voz:.15, tempo:.1};
   let tot = 0, wsum = 0; for (const k in weights) if (s[k] != null) { tot += s[k]*weights[k]; wsum += weights[k]; }
@@ -456,16 +543,16 @@ function report(){
   if (hasSR && wpm < 110) tips.push(`Ritmo de ${wpm} palavras/min, lento. Prepare 3 pontos antes de começar para a fala fluir com mais energia.`);
   if (hasSR && fpm > 3) tips.push(`${f.total} vícios de linguagem (${fpm.toFixed(1)} por minuto). Quando sentir o "é..." chegando, troque por uma pausa em silêncio.`);
   if (pauses > 2) tips.push(`${pauses} pausas longas (a maior com ${longestPause.toFixed(1)} s). Pausas curtas são ótimas; as longas indicam que você perdeu o fio. Use a estrutura PREP.`);
-  if (sd < 4) tips.push("Voz monótona: o volume variou pouco. Fale mais baixo e mais devagar nos pontos-chave e mais forte nas conclusões.");
+  if (hasVol && sd < 4) tips.push("Voz monótona: o volume variou pouco. Fale mais baixo e mais devagar nos pontos-chave e mais forte nas conclusões.");
   if (session.target && dur < session.target * 0.75) tips.push(`Você encerrou em ${fmt(dur)}, antes do tempo alvo de ${fmt(session.target)}. Treine desenvolver cada ponto com um exemplo.`);
-  if (SR && n === 0) tips.push("Não captei nenhuma palavra. Confira se o microfone certo está selecionado e fale mais perto dele.");
-  else if (!hasSR) tips.push("Sem transcrição neste navegador: use o Chrome ou o Edge para medir ritmo e vícios.");
+  if (!hasSR && (useLiveRecog() || server.transcribe)) tips.push("Não captei nenhuma palavra. Confira se o microfone está liberado e fale mais perto dele.");
+  else if (!hasSR) tips.push(IOS ? "Sem transcrição: no iPhone, use o Safari com o Ditado ativado (Ajustes › Geral › Teclado), ou rode o app no servidor ClipForge, que transcreve sozinho." : "Sem transcrição neste navegador: use o Chrome ou o Edge para medir ritmo e vícios.");
   if (!tips.length) tips.push("Excelente! Agora aumente o desafio: menos tempo de preparo ou um tema mais difícil.");
 
   const label = score >= 85 ? "Orador confiante" : score >= 70 ? "Muito bom" : score >= 55 ? "No caminho certo" : "Continue treinando";
   $("rScore").textContent = score; $("rScore").style.color = score >= 70 ? "var(--ok)" : score >= 55 ? "var(--warn)" : "var(--bad)";
   $("rLabel").textContent = label;
-  $("rSub").textContent = `${fmt(dur)} · ${n} palavras` + (hasSR ? ` · ${wpm} palavras/min` : "");
+  $("rSub").textContent = `${fmt(dur)} · ${n} palavras` + (hasSR ? ` · ${wpm} palavras/min` : "") + (source === "servidor" ? " · transcrito no servidor" : "");
   const names = {ritmo:"Ritmo", clareza:"Clareza (sem vícios)", fluencia:"Fluência", voz:"Expressividade da voz", tempo:"Controle do tempo"};
   $("rBars").innerHTML = Object.keys(names).filter(k => s[k] != null).map(k => {
     const v = Math.round(s[k]), c = v >= 70 ? "var(--ok)" : v >= 50 ? "var(--warn)" : "var(--bad)";
@@ -478,14 +565,14 @@ function report(){
   $("report").scrollIntoView({behavior:"smooth", block:"start"});
 
   lastReport = {mode: session.mode, topic: session.topic, date: session.date, dur: Math.round(dur), words: n, wpm: hasSR ? wpm : null,
-    fillers: f.total, fpm: hasSR ? +fpm.toFixed(1) : null, fillerList: f.counts, pauses, longestPause: +longestPause.toFixed(1), volSd: +sd.toFixed(1), score, transcript: text};
+    fillers: f.total, fpm: hasSR ? +fpm.toFixed(1) : null, fillerList: f.counts, pauses, longestPause: +longestPause.toFixed(1), volSd: hasVol ? +sd.toFixed(1) : 0, score, transcript: text};
   saveHistory(lastReport);
 }
 
 // ======================= IA =======================
 $("btnAI").onclick = async () => {
   if (!lastReport) return;
-  if (!lastReport.transcript) { $("aiOut").textContent = "Não há transcrição para analisar. Use o Chrome ou o Edge."; $("aiOut").classList.remove("hidden"); return; }
+  if (!lastReport.transcript) { $("aiOut").textContent = (IOS ? "Não há transcrição para analisar. No iPhone, ative o Ditado (Ajustes › Geral › Teclado) e use o Safari." : "Não há transcrição para analisar. Use o Chrome ou o Edge."); $("aiOut").classList.remove("hidden"); return; }
   $("btnAI").disabled = true; $("aiOut").classList.remove("hidden"); $("aiOut").textContent = "Analisando sua fala…";
   try {
     const r = await fetch("/api/oratoria/feedback", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(lastReport)});

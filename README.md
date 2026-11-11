@@ -26,7 +26,10 @@ Um app para treinar a fala em público, em `oratoria/index.html`. Com o servidor
 - **No final:** uma nota de 0 a 100 dividida em ritmo, clareza, fluência, expressividade da voz e controle do tempo, com dicas práticas. Você pode baixar o vídeo e pedir o feedback de um coach gerado pelo Claude (precisa de `ANTHROPIC_API_KEY`; só o texto é enviado).
 - **Evolução:** o histórico e o gráfico das notas ficam salvos no navegador. A aba Exercícios traz uma rotina diária de 10 minutos.
 
-Use o Chrome ou o Edge (no computador ou no Android): o reconhecimento de voz depende deles. Em outros navegadores, a gravação funciona, mas sem transcrição. O microfone só funciona em HTTPS ou em localhost.
+**Onde funciona:**
+- **iPhone:** abra pelo endereço `https://…/oratoria` do servidor, no Safari. O iPhone só libera câmera e microfone em HTTPS. Com o servidor, a fala é transcrita no final do treino pelo Whisper, o mesmo motor dos cortes, sem depender do Ditado do iPhone. Sem o servidor, a transcrição usa o Ditado do iOS (Ajustes › Geral › Teclado › Ativar Ditado) e só funciona no Safari: o Chrome e outros apps do iPhone não têm reconhecimento de voz.
+- **Android e computador:** Chrome ou Edge, com transcrição ao vivo.
+- Se `APP_PASSWORD` estiver definida, o login volta direto para `/oratoria`.
 
 ## Instalação
 
